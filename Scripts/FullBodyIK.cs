@@ -1,11 +1,12 @@
-﻿#if SAFULLBODYIK_DEBUG
+﻿// Copyright (c) 2016 Nora
+// Released under the MIT license
+// http://opensource.org/licenses/mit-license.phpusing
+
+#if SAFULLBODYIK_DEBUG
 //#define SAFULLBODYIK_DEBUG_CONSTRUCT_TIME
 #define SAFULLBODYIK_DEBUG_LOCKTRANSFORM
 #endif
 
-// Copyright (c) 2016 Nora
-// Released under the MIT license
-// http://opensource.org/licenses/mit-license.phpusing
 using UnityEngine;
 using System.Collections.Generic;
 
@@ -14,7 +15,7 @@ namespace SA
 	[ExecuteInEditMode]
 	public partial class FullBodyIK : MonoBehaviour
 	{
-		#if SAFULLBODYIK_DEBUG
+#if SAFULLBODYIK_DEBUG
 		public enum DebugValueType
 		{
 			Int,
@@ -146,10 +147,10 @@ namespace SA
 
 		[System.NonSerialized]
 		public DebugData _debugData = new DebugData();
-		#if SAFULLBODYIK_DEBUG_LOCKTRANSFORM
+#if SAFULLBODYIK_DEBUG_LOCKTRANSFORM
 		public Vector3 _debug_currentPosition = Vector3.zero;
-		#endif
-		#endif
+#endif
+#endif
 		
 		[System.Serializable]
 		public class BodyBones
@@ -411,9 +412,6 @@ namespace SA
 			public Matrix3x3 defaultRootBasis = Matrix3x3.identity;
 			public Matrix3x3 defaultRootBasisInv = Matrix3x3.identity;
 			public Quaternion defaultRootRotation = Quaternion.identity;
-
-			public bool rootTransformIsAlive = false;
-			public Transform rootTransform = null;
 		}
 
 		[System.Serializable]
@@ -931,11 +929,9 @@ namespace SA
 
 			if( this.transform != null ) { // Failsafe.
 				_internalValues.defaultRootPosition = this.transform.position;
-				_internalValues.defaultRootBasis = Matrix3x3.FromColumn( this.transform.right, this.transform.up, this.transform.forward );
+                _internalValues.defaultRootBasis = Matrix3x3.FromColumn( this.transform.right, this.transform.up, this.transform.forward );
 				_internalValues.defaultRootBasisInv = _internalValues.defaultRootBasis.transpose;
 				_internalValues.defaultRootRotation = this.transform.rotation;
-				_internalValues.rootTransformIsAlive = true;
-				_internalValues.rootTransform = this.transform;
 			}
 
 			if( _bones != null ) {
@@ -1028,8 +1024,6 @@ namespace SA
 			if( !Application.isPlaying ) {
 				return;
 			}
-
-			_internalValues.rootTransformIsAlive = (this.transform != null);
 
 #if SAFULLBODYIK_DEBUG_LOCKTRANSFORM
 			this.transform.position = _debug_currentPosition;

@@ -209,7 +209,7 @@ namespace SA
 			{
 				switch( effectorType ) {
 				case EffectorType.Pelvis:	return _EffectorFlags.RotationContained;
-				case EffectorType.Head:		return _EffectorFlags.RotationContained | _EffectorFlags.PullContained;
+				case EffectorType.Head:		return _EffectorFlags.RotationContained;
 				case EffectorType.Wrist:	return _EffectorFlags.RotationContained | _EffectorFlags.PullContained;
 				case EffectorType.Foot:		return _EffectorFlags.RotationContained | _EffectorFlags.PullContained;
 				}

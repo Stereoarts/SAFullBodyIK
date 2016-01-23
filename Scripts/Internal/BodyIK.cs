@@ -30,6 +30,7 @@ namespace SA
 			Bone[] _legBones; // Null accepted.
 			Bone[] _shoulderBones; // Null accepted.
 			Bone[] _armBones; // Null accepted.
+			Effector _rootEffector;
 			Effector _pelvisEffector;
 			Effector _neckEffector;
 			Effector _eyesEffector;
@@ -77,6 +78,7 @@ namespace SA
 #endif
 				_pelvisBone = _PrepareBone( fullBodyIK._bodyBones.pelvis );
 				_neckBone = _PrepareBone( fullBodyIK._headBones.neck );
+				_rootEffector = fullBodyIK._rootEffector;
 				_pelvisEffector = fullBodyIK._bodyEffectors.pelvis;
 				_neckEffector = fullBodyIK._headEffectors.neck;
 				_eyesEffector = fullBodyIK._headEffectors.eyes;
@@ -367,10 +369,11 @@ namespace SA
 					return false; // No moved.
 				}
 
+				float neckWeight = _neckEffector.positionEnabled ? _neckEffector.positionWeight : 0.0f;
 				float eyesWeight = _eyesEffector.positionEnabled ? _eyesEffector.positionWeight : 0.0f;
 				float armPull0 = _wristEffectors[0].positionEnabled ? _wristEffectors[0].pull : 0.0f;
 				float armPull1 = _wristEffectors[1].positionEnabled ? _wristEffectors[1].pull : 0.0f;
-				if( eyesWeight <= IKEpsilon && armPull0 <= IKEpsilon && armPull1 <= IKEpsilon ) {
+				if( neckWeight <= IKEpsilon && eyesWeight <= IKEpsilon && armPull0 <= IKEpsilon && armPull1 <= IKEpsilon ) {
 					return false; // No moved.
 				}
 
@@ -401,6 +404,8 @@ namespace SA
 				float _stableTorsoRate = 0.0f;
 				float _stablePostRate = 0.01f;
 
+				float _upperNeckRate1 = 0.6f;
+				float _upperNeckRate2 = 0.9f;
 				float _upperEyesRate1 = 0.2f;
 				float _upperEyesRate2 = 0.5f;
 				float _upperEyesYUpRate = 0.25f;
@@ -411,6 +416,8 @@ namespace SA
 				float _upperEyesYDownAngle = 45.0f;
 
 #if SAFULLBODYIK_DEBUG
+				_debugData.UpdateValue( "_upperNeckRate1", ref _upperNeckRate1 );
+				_debugData.UpdateValue( "_upperNeckRate2", ref _upperNeckRate2 );
 				_debugData.UpdateValue( "_upperEyesRate1", ref _upperEyesRate1 );
 				_debugData.UpdateValue( "_upperEyesRate2", ref _upperEyesRate2 );
 				_debugData.UpdateValue( "_upperEyesYUpRate", ref _upperEyesYUpRate );
@@ -588,11 +595,11 @@ namespace SA
 
 				float postTranslateRate = continuousSolverEnabled ? _upper_postTranslateRate : 1.0f;
 
-				// for NeckSolver.
+				// for neck / eyes.
 				Vector3 presolvedCenterLegPos2 = temp.centerLegPos;
-				{
+				if( neckWeight > IKEpsilon || eyesWeight > IKEpsilon ) {
 					Vector3 presolvedTranslate;
-					if( _UpperSolve_PreTranslate( out presolvedTranslate, postTranslateRate, _stablePreRate, baseCenterLegPos ) ) {
+					if( _UpperSolve_PreTranslate( out presolvedTranslate, postTranslateRate, _stablePostRate, baseCenterLegPos ) ) {
 						presolvedCenterLegPos2 += presolvedTranslate;
                     }
 				}
@@ -661,7 +668,6 @@ namespace SA
 					_debugData.AddPoint( _tempArmPos[1] - vecX, Color.black );
 #endif
 
-					// pending: contain neck.
 					centerArmDirY = centerArmPos - temp.centerLegPos;
 					centerArmDirY2 = centerArmPos2 - temp.centerLegPos;
 				}
@@ -670,12 +676,44 @@ namespace SA
 					return false; // Failsafe.(No moved.)
 				}
 
+				// Neck
+				if( neckWeight > IKEpsilon ) {
+					Vector3 centerLegPos = presolvedCenterLegPos2;
+
+					Matrix3x3 toBasis2, toBasis;
+					_ComputeBasisFromXYLockY( out toBasis2, ref centerArmDirX2, ref centerArmDirY2 );
+					_ComputeBasisFromXYLockY( out toBasis, ref centerArmDirX, ref centerArmDirY );
+					toBasis2 = toBasis2.Multiply( ref _centerLegToArmBasisInv );
+					toBasis = toBasis.Multiply( ref _centerLegToArmBasisInv );
+
+					Vector3 neckPosFrom2 = toBasis2.Multiply( _neckBone._defaultPosition - _defaultCenterLegPos ) + centerLegPos;
+					Vector3 neckPosFrom = toBasis.Multiply( _neckBone._defaultPosition - _defaultCenterLegPos ) + centerLegPos;
+					Vector3 neckPosTo = _neckEffector.worldPosition;
+
+					float theta;
+					Vector3 axis;
+					if( _ComputeThetaAxis( ref centerLegPos, ref neckPosFrom2, ref neckPosTo, out theta, out axis ) ) {
+						Matrix3x3 rotateBasis2;
+						_LerpRotateBasis( out rotateBasis2, ref axis, theta, _upperNeckRate2 * neckWeight );
+						centerArmDirX2 = rotateBasis2.Multiply( centerArmDirX2 );
+						centerArmDirY2 = rotateBasis2.Multiply( centerArmDirY2 );
+					}
+
+					if( _ComputeThetaAxis( ref centerLegPos, ref neckPosFrom, ref neckPosTo, out theta, out axis ) ) {
+						Matrix3x3 rotateBasis;
+						_LerpRotateBasis( out rotateBasis, ref axis, theta, _upperNeckRate1 * neckWeight );
+						centerArmDirX = rotateBasis.Multiply( centerArmDirX );
+						centerArmDirY = rotateBasis.Multiply( centerArmDirY );
+					}
+				}
+
+				// Eyes
 				if( eyesWeight > IKEpsilon ) {
 					// Based on centerArmDirX2 / centerArmDirY2
 					Matrix3x3 toBasis;
 					_ComputeBasisFromXYLockY( out toBasis, ref centerArmDirX2, ref centerArmDirY2 );
 
-					Matrix3x3 toBasisGlobal = toBasis * _centerLegToArmBasisInv; // Kari
+					Matrix3x3 toBasisGlobal = toBasis * _centerLegToArmBasisInv;
 
 					Matrix3x3 fromBasis = toBasis;
 
@@ -742,7 +780,12 @@ namespace SA
 						centerArmDirY = solveBasis.column1;
 					}
 				}
-				
+
+				if( neckWeight > IKEpsilon || eyesWeight > IKEpsilon ) {
+					// todo: Update 
+					// todo: centerArmPos(Continuous Solver)
+				}
+
 				{
 					Matrix3x3 rotateBasis = Matrix3x3.identity;
 
@@ -1456,25 +1499,25 @@ namespace SA
 				Matrix3x3 centerLegBasis = Matrix3x3.identity;
 				if( _pelvisEffector != null && _pelvisEffector.rotationEnabled && _pelvisEffector.rotationWeight > IKEpsilon ) {
 					Quaternion centerLegRotation = _pelvisEffector.worldRotation * Inverse( _pelvisEffector._defaultRotation );
-					if( _pelvisEffector.rotationWeight < 1.0f - IKEpsilon && _internalValues.rootTransformIsAlive ) {
-						Quaternion rootRotation = _internalValues.rootTransform.rotation * Inverse( _internalValues.defaultRootRotation );
+					if( _pelvisEffector.rotationWeight < 1.0f - IKEpsilon && _rootEffector != null && _rootEffector.transformIsAlive ) {
+						Quaternion rootRotation = _rootEffector.worldRotation * Inverse( _rootEffector._defaultRotation );
 						centerLegBasis = Quaternion.Lerp( rootRotation, centerLegRotation, _pelvisEffector.rotationWeight );
 					} else {
 						centerLegBasis = centerLegRotation;
 					}
-				} else if( _internalValues.rootTransformIsAlive ) {
-					centerLegBasis = _internalValues.rootTransform.rotation * Inverse( _internalValues.defaultRootRotation );
+				} else if( _rootEffector != null && _rootEffector.transformIsAlive ) {
+					centerLegBasis = _rootEffector.worldRotation * Inverse( _rootEffector._defaultRotation );
 				}
 
 				Vector3 centerLegPos = Vector3.zero;
 				if( _pelvisEffector != null && _pelvisEffector.positionEnabled && _pelvisEffector.positionWeight > IKEpsilon ) {
 					centerLegPos = centerLegBasis.Multiply( _defaultCenterLegPos - _pelvisEffector.defaultPosition ) + _pelvisEffector.worldPosition;
-					if( _pelvisEffector.positionWeight < 1.0f - IKEpsilon ) {
-						Vector3 rootPosition = centerLegBasis.Multiply( _defaultCenterLegPos - _internalValues.defaultRootPosition ) + _internalValues.rootTransform.position;
+					if( _pelvisEffector.positionWeight < 1.0f - IKEpsilon && _rootEffector != null && _rootEffector.transformIsAlive ) {
+						Vector3 rootPosition = centerLegBasis.Multiply( _defaultCenterLegPos - _rootEffector._defaultPosition ) + _rootEffector.worldPosition;
 						centerLegPos = Vector3.Lerp( rootPosition, centerLegPos, _pelvisEffector.positionWeight );
 					}
-				} else if( _internalValues.rootTransformIsAlive ) {
-					centerLegPos = centerLegBasis.Multiply( _defaultCenterLegPos - _internalValues.defaultRootPosition ) + _internalValues.rootTransform.position;
+				} else if( _rootEffector != null && _rootEffector.transformIsAlive ) {
+					centerLegPos = centerLegBasis.Multiply( _defaultCenterLegPos - _rootEffector._defaultPosition ) + _rootEffector.worldPosition;
 				}
 
 				_ResetCenterLegTransform( ref centerLegPos, ref centerLegBasis );
