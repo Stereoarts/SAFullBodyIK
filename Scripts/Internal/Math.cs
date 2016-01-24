@@ -1114,6 +1114,72 @@ namespace SA
 
 		//--------------------------------------------------------------------------------------------------------------------
 
+		public struct CachedDegreesToSin
+		{
+			float _degrees;
+			public float sin;
+
+			public static readonly CachedDegreesToSin zero = new CachedDegreesToSin( 0.0f, 0.0f );
+
+			public CachedDegreesToSin( float degrees )
+			{
+				_degrees = degrees;
+				sin = (float)System.Math.Sin( degrees * Mathf.Deg2Rad );
+			}
+
+			public CachedDegreesToSin( float degrees, float sin_ )
+			{
+				_degrees = degrees;
+				sin = sin_;
+			}
+
+			public void Reset( float degrees )
+			{
+				if( _degrees != degrees ) {
+					sin = (float)System.Math.Sin( degrees * Mathf.Deg2Rad );
+				}
+			}
+
+			public static implicit operator float ( CachedDegreesToSin this_ )
+			{
+				return this_.sin;
+			}
+		}
+
+		public struct CachedDegreesToCos
+		{
+			float _degrees;
+			public float cos;
+
+			public static readonly CachedDegreesToCos zero = new CachedDegreesToCos( 0.0f, 1.0f );
+
+			public CachedDegreesToCos( float degrees )
+			{
+				_degrees = degrees;
+				cos = (float)System.Math.Cos( degrees * Mathf.Deg2Rad );
+			}
+
+			public CachedDegreesToCos( float degrees, float cos_ )
+			{
+				_degrees = degrees;
+				cos = cos_;
+			}
+
+			public void Reset( float degrees )
+			{
+				if( _degrees != degrees ) {
+					cos = (float)System.Math.Cos( degrees * Mathf.Deg2Rad );
+				}
+			}
+
+			public static implicit operator float ( CachedDegreesToCos this_ )
+			{
+				return this_.cos;
+			}
+		}
+
+		//--------------------------------------------------------------------------------------------------------------------
+
 		public static bool _ComputeBasisFromXZLockX( out Matrix3x3 basis, Vector3 dirX, Vector3 dirZ )
 		{
 			return _ComputeBasisFromXZLockX( out basis, ref dirX, ref dirZ );

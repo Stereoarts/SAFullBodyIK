@@ -392,14 +392,38 @@ namespace SA
 			public AutomaticBool animatorEnabled = AutomaticBool.Auto;
 			public AutomaticBool resetTransforms = AutomaticBool.Auto;
 
-			public bool automaticConfigureTwistEnabled = true;
+			public bool automaticConfigureTwistEnabled = false;
 			public bool createEffectorTransform = true;
 
-			public bool overrideAutomaticKneePosition = true;
 			public ModelTemplate modelTemplate = ModelTemplate.Standard;
-			public float automaticKneeBaseAngle = 0.0f;
 
-			public float pelvisEffectorKeepHrizontalRate = 1.0f;
+			public class BodyIK
+			{
+			}
+
+			public class LimbIK
+			{
+				public float automaticKneeBaseAngle = 0.0f;
+				public float presolveKneeRate = 1.0f;
+				public float presolveKneeLerpAngle = 10.0f;
+				public float presolveKneeLerpLengthRate = 0.1f;
+				public float presolveElbowRate = 1.0f;
+				public float presolveElbowLerpAngle = 10.0f;
+				public float presolveElbowLerpLengthRate = 0.1f;
+            }
+
+			public class HeadIK
+			{
+			}
+
+			public class FingerIK
+			{
+			}
+
+			public BodyIK bodyIK = new BodyIK();
+			public LimbIK limbIK = new LimbIK();
+			public HeadIK headIK = new HeadIK();
+			public FingerIK fingerIK = new FingerIK();
 		}
 
 		public class InternalValues

@@ -172,9 +172,11 @@ namespace SA
 			// for animatorEnabled
 			bool _isPresolvedBending = false;
 			Matrix3x3 _presolvedBendingBasis = Matrix3x3.identity;
+			Vector3 _presolvedEffectorDir = Vector3.zero;
+			float _presolvedEffectorLength = 0.0f;
 
 			// effectorDir to beginBoneBasis
-			void _SolveBaseBasis( ref Matrix3x3 baseBasis, ref Matrix3x3 parentBaseBasis, ref Vector3 effectorDir )
+			void _SolveBaseBasis( out Matrix3x3 baseBasis, ref Matrix3x3 parentBaseBasis, ref Vector3 effectorDir )
 			{
 				if( _limbIKType == LimbIKType.Arm ) {
 					Vector3 dirX = (_limbIKSide == Side.Left) ? -effectorDir : effectorDir;
@@ -224,8 +226,12 @@ namespace SA
 				}
 
 				if( _limbIKType == LimbIKType.Leg ) {
-					if( _settings.overrideAutomaticKneePosition ) {
-						return; // No require.
+					if( _settings.limbIK.presolveKneeRate < IKEpsilon ) {
+						return; // No effect.
+					}
+				} else {
+					if( _settings.limbIK.presolveElbowRate < IKEpsilon ) {
+						return; // No effect.
 					}
 				}
 
@@ -245,28 +251,29 @@ namespace SA
 				Vector3 bendingDir = bendingTrans * (1.0f / bendingLen);
 
 				Matrix3x3 parentBaseBasis = _beginBone.parentBone.worldRotation * _beginBone.parentBone._worldToBaseRotation;
-                Matrix3x3 baseBasis = Matrix3x3.identity;
-                // Solve EffectorDir Based Basis.
-				_SolveBaseBasis( ref baseBasis, ref parentBaseBasis, ref effectorDir );
+				// Solve EffectorDir Based Basis.
+				Matrix3x3 baseBasis;
+				_SolveBaseBasis( out baseBasis, ref parentBaseBasis, ref effectorDir );
 
-				Matrix3x3 toBasis = Matrix3x3.identity;
-				{
-					if( _limbIKType == LimbIKType.Arm ) {
-						Vector3 dirX = (_limbIKSide == Side.Left) ? -bendingDir : bendingDir;
-						Vector3 basisY = parentBaseBasis.column1;
-						Vector3 basisZ = parentBaseBasis.column2;
-						if( _ComputeBasisLockX( out toBasis, ref dirX, ref basisY, ref basisZ ) ) {
-							_presolvedBendingBasis = toBasis * baseBasis.transpose;
-							_isPresolvedBending = true;
-						}
-					} else {
-						Vector3 dirY = -bendingDir;
-						Vector3 basisX = parentBaseBasis.column0;
-						Vector3 basisZ = parentBaseBasis.column2;
-						if( _ComputeBasisLockY( out toBasis, ref basisX, ref dirY, ref basisZ ) ) {
-							_presolvedBendingBasis = toBasis * baseBasis.transpose;
-							_isPresolvedBending = true;
-						}
+				_presolvedEffectorDir = effectorDir;
+				_presolvedEffectorLength = effectorLen;
+
+				Matrix3x3 toBasis;
+				if( _limbIKType == LimbIKType.Arm ) {
+					Vector3 dirX = (_limbIKSide == Side.Left) ? -bendingDir : bendingDir;
+					Vector3 basisY = parentBaseBasis.column1;
+					Vector3 basisZ = parentBaseBasis.column2;
+					if( _ComputeBasisLockX( out toBasis, ref dirX, ref basisY, ref basisZ ) ) {
+						_presolvedBendingBasis = toBasis * baseBasis.transpose;
+						_isPresolvedBending = true;
+					}
+				} else {
+					Vector3 dirY = -bendingDir;
+					Vector3 basisX = parentBaseBasis.column0;
+					Vector3 basisZ = parentBaseBasis.column2;
+					if( _ComputeBasisLockY( out toBasis, ref basisX, ref dirY, ref basisZ ) ) {
+						_presolvedBendingBasis = toBasis * baseBasis.transpose;
+						_isPresolvedBending = true;
 					}
 				}
 			}
@@ -365,6 +372,9 @@ namespace SA
 
 			//------------------------------------------------------------------------------------------------------------
 
+			CachedDegreesToCos _presolvedLerpTheta = CachedDegreesToCos.zero;
+			CachedDegreesToCos _automaticKneeBaseTheta = CachedDegreesToCos.zero;
+
 			public bool Solve()
 			{
 				if( !_endEffector.positionEnabled ) {
@@ -374,9 +384,6 @@ namespace SA
 				if( _beginBone.parentBone == null || !_beginBone.parentBone.transformIsAlive ) {
 					return false; // Failsafe.
 				}
-
-				//Matrix3x3 parentBasis = _beginBone.parentBone.worldRotation * Inverse( ref _beginBone.parentBone._defaultRotation );
-				//Matrix3x3 parentBaseBasis = parentBasis * _rootBaseBasis;
 
 				Matrix3x3 parentBaseBasis = _beginBone.parentBone.worldRotation * _beginBone.parentBone._worldToBaseRotation;
 
@@ -405,14 +412,14 @@ namespace SA
 				bool _isPresolveBending = true;
 				bool _isEffectorPrefixer = true;
 
-				#if SAFULLBODYIK_DEBUG
+#if SAFULLBODYIK_DEBUG
 				_debugData.UpdateValue( "_isEffectorPrefixer", ref _isEffectorPrefixer );
 				_debugData.UpdateValue( "_isPresolveBending", ref _isPresolveBending );
 				_debugData.UpdateValue( "_isSolveLimbIK", ref _isSolveLimbIK );
-				#endif
+#endif
 
+				// pending: Detail processing for Arm too.
 				if( _isEffectorPrefixer && _limbIKType == LimbIKType.Leg ) { // Override Effector Pos.
-					//Vector3 localEffectorDir = parentBaseBasis.transpose * effectorDir;
 					Vector3 localEffectorTrans = parentBaseBasis.transpose * effectorTrans;
 
 					bool isProcessed = false;
@@ -456,14 +463,6 @@ namespace SA
 						}
 					}
 
-#if false
-					if( localEffectorTrans.y < 0.0f ) {
-
-					} else {
-
-					}
-#endif
-
 					if( isLimited ) {
 #if SAFULLBODYIK_DEBUG
 						_debugData.AddPoint( effectorPos, Color.black, 0.05f );
@@ -478,86 +477,82 @@ namespace SA
 						_debugData.AddPoint( effectorPos, Color.white, 0.05f );
 #endif
 					}
-
-
-
-
-
-#if false
-					//if( localEffectorTrans.y > -_legEffectorMinLength ) {
-						// todo: DetailMap!!!!
-
-						bool isLimited = false;
-						bool isLimitedCircular = false;
-
-
-						if( localEffectorTrans.y >= 0.0f ) { // Upper Zone.
-							isLimited = true;
-							isLimitedCircular = true;
-						} else { // Lower Circle.
-							float localY = localEffectorTrans.y;
-							float localZ = localEffectorTrans.z;
-							float localYZLen = localY * localY + localZ * localZ;
-							localYZLen = (localYZLen > IKEpsilon) ? Mathf.Sqrt( localYZLen ) : 0.0f;
-							isLimited = (localYZLen < _legEffectorMinLength);
-							if( isLimited ) {
-								isLimitedCircular = true;
-							}
-						}
-
-
-						if( isLimited ) {
-#if SAFULLBODYIK_DEBUG
-							_debugData.AddPoint( effectorPos, Color.black, 0.05f );
-#endif
-
-							if( isLimitedCircular ) {
-								float n = _legEffectorMinLength * _legEffectorMinLength - localEffectorTrans.z * localEffectorTrans.z;
-								n = (n > IKEpsilon) ? Mathf.Sqrt( n ) : 0.0f;
-								if( n > IKEpsilon ) {
-									localEffectorTrans.y = -n;
-								} else {
-									localEffectorTrans.z = 0.0f;
-                                    localEffectorTrans.y = -_legEffectorMinLength;
-								}
-							}
-
-							effectorTrans = parentBasis * localEffectorTrans;
-							effectorLen = effectorTrans.magnitude;
-                            effectorPos = beginPos + effectorTrans;
-							if( effectorLen > IKEpsilon ) {
-								effectorDir = effectorTrans * (1.0f / effectorLen);
-							}
-
-#if SAFULLBODYIK_DEBUG
-							_debugData.AddPoint( effectorPos, Color.white, 0.05f );
-#endif
-						}
-					}
-#endif
 				}
 
-				Matrix3x3 baseBasis = Matrix3x3.identity;
-				_SolveBaseBasis( ref baseBasis, ref parentBaseBasis, ref effectorDir );
+				Matrix3x3 baseBasis;
+				_SolveBaseBasis( out baseBasis, ref parentBaseBasis, ref effectorDir );
 
 				// Automatical bendingPos
 				if( !_bendingEffector.positionEnabled ) {
+					float presolvedBendingRate = (_limbIKType == LimbIKType.Leg)
+						? _settings.limbIK.presolveKneeRate
+						: _settings.limbIK.presolveElbowRate;
+
+					float presolvedLerpAngle = (_limbIKType == LimbIKType.Leg)
+						? _settings.limbIK.presolveKneeLerpAngle
+						: _settings.limbIK.presolveElbowLerpAngle;
+
+					float presolvedLerpLengthRate = (_limbIKType == LimbIKType.Leg)
+						? _settings.limbIK.presolveKneeLerpLengthRate
+						: _settings.limbIK.presolveElbowLerpLengthRate;
+
+					Vector3 presolvedBendingPos = Vector3.zero;
 					if( _isPresolveBending && _isPresolvedBending ) {
-						Vector3 bendingDir;
-						Matrix3x3 presolvedBendingBasis = baseBasis * _presolvedBendingBasis;
-						if( _limbIKType == LimbIKType.Arm ) {
-							bendingDir = (_limbIKSide == Side.Left) ? -presolvedBendingBasis.column0 : presolvedBendingBasis.column0;
-						} else {
-							bendingDir = -presolvedBendingBasis.column1;
+						if( _presolvedEffectorLength > IKEpsilon ) {
+							float lerpLength = _presolvedEffectorLength * presolvedLerpLengthRate;
+							if( lerpLength > IKEpsilon ) {
+								float tempLength = Mathf.Abs( _presolvedEffectorLength - effectorLen );
+								if( tempLength < lerpLength ) {
+									presolvedBendingRate *= 1.0f - (tempLength / lerpLength);
+                                } else {
+									presolvedBendingRate = 0.0f;
+								}
+							} else { // Failsafe.
+								presolvedBendingRate = 0.0f;
+							}
+						} else { // Failsafe.
+							presolvedBendingRate = 0.0f;
 						}
-						bendingPos = beginPos + bendingDir * _beginToBendingLength;
+
+						if( presolvedBendingRate > IKEpsilon ) {
+							_presolvedLerpTheta.Reset( presolvedLerpAngle );
+							if( _presolvedLerpTheta < 1.0f - IKEpsilon ) { // Lerp
+								float presolvedFeedbackTheta = Vector3.Dot( effectorDir, _presolvedEffectorDir );
+								if( presolvedFeedbackTheta > _presolvedLerpTheta + IKEpsilon ) {
+									float presolvedFeedbackRate = (presolvedFeedbackTheta - _presolvedLerpTheta) / (1.0f - _presolvedLerpTheta);
+									presolvedBendingRate *= presolvedFeedbackRate;
+								} else {
+									presolvedBendingRate = 0.0f;
+								}
+							} else {
+								presolvedBendingRate = 0.0f;
+							}
+						}
+
+						if( presolvedBendingRate > IKEpsilon ) {
+							Vector3 bendingDir;
+							Matrix3x3 presolvedBendingBasis = baseBasis * _presolvedBendingBasis;
+							if( _limbIKType == LimbIKType.Arm ) {
+								bendingDir = (_limbIKSide == Side.Left) ? -presolvedBendingBasis.column0 : presolvedBendingBasis.column0;
+							} else {
+								bendingDir = -presolvedBendingBasis.column1;
+							}
+
+							presolvedBendingPos = beginPos + bendingDir * _beginToBendingLength;
+							bendingPos = presolvedBendingPos; // Failsafe.
+						}
 					} else {
+						presolvedBendingRate = 0.0f;
+					}
+
+					if( presolvedBendingRate < 1.0f - IKEpsilon ) {
 						float cosTheta = ComputeCosTheta(
-							_bendingToEndLengthSq,			// lenASq
-							effectorLen * effectorLen,		// lenBSq
-							_beginToBendingLengthSq,		// lenCSq
-							effectorLen,					// lenB
-							_beginToBendingLength );		// lenC
+							_bendingToEndLengthSq,          // lenASq
+							effectorLen * effectorLen,      // lenBSq
+							_beginToBendingLengthSq,        // lenCSq
+							effectorLen,                    // lenB
+							_beginToBendingLength );        // lenC
+
 						float sinTheta = Sqrt( Mathf.Clamp01( 1.0f - cosTheta * cosTheta ) );
 
 						float moveC = _beginToBendingLength * (1.0f - Mathf.Max( _defaultCosTheta - cosTheta, 0.0f ));
@@ -578,20 +573,19 @@ namespace SA
 								bendingPos = beginPos + dirX * moveC + -baseBasis.column2 * moveS;
 							}
 						} else { // Leg
-							// Test code!!!
-							// todo: Optimizate
-
-							if( IsFuzzy( _settings.automaticKneeBaseAngle, 0.0f ) ) {
+							if( IsFuzzy( _settings.limbIK.automaticKneeBaseAngle, 0.0f ) ) {
 								bendingPos = beginPos + -baseBasis.column1 * moveC + baseBasis.column2 * moveS;
 							} else {
-								float kneeSin = Mathf.Cos( Mathf.Abs( _settings.automaticKneeBaseAngle * Mathf.Deg2Rad ) );
-								float kneeCos = Sqrt( 1.0f - kneeSin * kneeSin );
+								_automaticKneeBaseTheta.Reset( _settings.limbIK.automaticKneeBaseAngle );
+
+								float kneeSin = _automaticKneeBaseTheta.cos;
+                                float kneeCos = Sqrt( 1.0f - kneeSin * kneeSin );
 								if( _limbIKSide == Side.Right ) {
-									if( _settings.automaticKneeBaseAngle >= 0.0f ) {
+									if( _settings.limbIK.automaticKneeBaseAngle >= 0.0f ) {
 										kneeCos = -kneeCos;
-                                    }
-                                } else {
-									if( _settings.automaticKneeBaseAngle < 0.0f ) {
+									}
+								} else {
+									if( _settings.limbIK.automaticKneeBaseAngle < 0.0f ) {
 										kneeCos = -kneeCos;
 									}
 								}
@@ -600,14 +594,12 @@ namespace SA
 									+ baseBasis.column0 * moveS * kneeCos
 									+ baseBasis.column2 * moveS * kneeSin;
 							}
-
-							//Debug.Log( "bendingPos: " + bendingPos.ToString("F4") );
-#if SAFULLBODYIK_DEBUG
-							_debugData.AddPoint( bendingPos, Color.red, 0.05f );
-							_debugData.AddPoint( _bendingBone.worldPosition, Color.blue, 0.05f );
-#endif
 						}
 					}
+
+					if( presolvedBendingRate > IKEpsilon ) {
+						bendingPos = Vector3.Lerp( bendingPos, presolvedBendingPos, presolvedBendingRate );
+                    }
 				}
 
 				bool isSolved = false;
@@ -703,8 +695,7 @@ namespace SA
 					solvedBendingToEndDir = -solvedBendingToEndDir;
 
 					Vector3 basisX = baseBasis.column0;
-					Vector3 basisZ = baseBasis.column2; // Test
-					//if( !_ComputeBasisFromXYLockY( ref beginBasis, ref basisX, ref solvedBeginToBendingDir ) ) {
+					Vector3 basisZ = baseBasis.column2;
 					if( !_ComputeBasisLockY( out beginBasis, ref basisX, ref solvedBeginToBendingDir, ref basisZ ) ) { // Test
 						return _SolveEndRotation();
 					}
@@ -712,8 +703,7 @@ namespace SA
 					bendingBasis = beginBasis * _beginToBendingBoneBasis;
 
 					basisX = bendingBasis.column0;
-					basisZ = bendingBasis.column2; // Test
-					//if( !_ComputeBasisFromXYLockY( ref bendingBasis, ref basisX, ref solvedBendingToEndDir ) ) {
+					basisZ = bendingBasis.column2;
 					if( !_ComputeBasisLockY( out bendingBasis, ref basisX, ref solvedBendingToEndDir, ref basisZ ) ) { // Test
 						return _SolveEndRotation();
 					}
@@ -733,7 +723,7 @@ namespace SA
 				}
 
 				var r = _endEffector.worldRotation * _endEffectorToWorldRotation;
-				_endBone.worldRotation = Normalize( r );
+				_endBone.worldRotation = r;
 				return true;
 			}
 

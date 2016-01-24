@@ -369,6 +369,7 @@ namespace SA
 					return false; // No moved.
 				}
 
+				//float pelvisWeight = _pelvisEffector.positionEnabled ? _pelvisEffector.positionWeight : 0.0f;
 				float neckWeight = _neckEffector.positionEnabled ? _neckEffector.positionWeight : 0.0f;
 				float eyesWeight = _eyesEffector.positionEnabled ? _eyesEffector.positionWeight : 0.0f;
 				float armPull0 = _wristEffectors[0].positionEnabled ? _wristEffectors[0].pull : 0.0f;
@@ -453,7 +454,6 @@ namespace SA
 				_torsoLimitAngleY *= Mathf.Deg2Rad;
 				_torsoLimitAngleX *= Mathf.Deg2Rad;
 
-				Vector3 baseDirX = Vector3.zero;
 				Vector3 baseCenterLegPos = Vector3.zero;
 
 				bool continuousSolverEnabled = _internalValues.continuousSolverEnabled;
@@ -467,40 +467,36 @@ namespace SA
 						}
 					}
 
-					_UpperSolve_Solve_GetBaseTransform( out baseDirX, out baseCenterLegPos );
+					Matrix3x3 centerLegBasis;
+					_UpperSolve_PresolveBaseCenterLegTransform( out baseCenterLegPos, out centerLegBasis );
 
 #if SAFULLBODYIK_DEBUG
 					_debugData.AddPoint( baseCenterLegPos, Color.gray, 0.05f );
-					_debugData.AddPoint( baseCenterLegPos + baseDirX * 0.1f, Color.yellow, 0.05f );
+					_debugData.AddPoint( baseCenterLegPos + centerLegBasis.column0 * 0.1f, Color.yellow, 0.05f );
 #endif
 
 					temp.Backup(); // for Testsolver.
-
-					Vector3 baseDirZ = new Vector3( -baseDirX.z, 0.0f, baseDirX.x );
-
-					Matrix3x3 centerLegBasis = new Matrix3x3( baseDirX, new Vector3( 0.0f, 1.0f, 0.0f ), baseDirZ );
 
 					if( _torsoBones != null ) {
 						for( int i = 0; i < _torsoBones.Length; ++i ) {
 							temp.torsoPos[i] = centerLegBasis.Multiply( _torsoBones[i]._defaultPosition - _defaultCenterLegPos ) + baseCenterLegPos;
 						}
-						if( _neckBone != null ) {
-							temp.neckPos = centerLegBasis.Multiply( _neckBone._defaultPosition - _defaultCenterLegPos ) + baseCenterLegPos;
-						}
-						for( int n = 0; n < 2; ++n ) {
-							if( _shoulderBones != null ) {
-								temp.shoulderPos[n] = centerLegBasis.Multiply( _shoulderBones[n]._defaultPosition - _defaultCenterLegPos ) + baseCenterLegPos;
-							}
-							if( _armBones != null ) {
-								temp.armPos[n] = centerLegBasis.Multiply( _armBones[n]._defaultPosition - _defaultCenterLegPos ) + baseCenterLegPos;
-							}
-							if( _legBones != null ) {
-								temp.legPos[n] = centerLegBasis.Multiply( _legBones[n]._defaultPosition - _defaultCenterLegPos ) + baseCenterLegPos;
-							}
-						}
-
-						temp.SetDirtyVariables();
 					}
+					if( _neckBone != null ) {
+						temp.neckPos = centerLegBasis.Multiply( _neckBone._defaultPosition - _defaultCenterLegPos ) + baseCenterLegPos;
+					}
+					for( int n = 0; n < 2; ++n ) {
+						if( _shoulderBones != null ) {
+							temp.shoulderPos[n] = centerLegBasis.Multiply( _shoulderBones[n]._defaultPosition - _defaultCenterLegPos ) + baseCenterLegPos;
+						}
+						if( _armBones != null ) {
+							temp.armPos[n] = centerLegBasis.Multiply( _armBones[n]._defaultPosition - _defaultCenterLegPos ) + baseCenterLegPos;
+						}
+						if( _legBones != null ) {
+							temp.legPos[n] = centerLegBasis.Multiply( _legBones[n]._defaultPosition - _defaultCenterLegPos ) + baseCenterLegPos;
+						}
+					}
+					temp.SetDirtyVariables();
 				}
 
 				// Solve.
@@ -596,6 +592,7 @@ namespace SA
 				float postTranslateRate = continuousSolverEnabled ? _upper_postTranslateRate : 1.0f;
 
 				// for neck / eyes.
+				// presolvedCenterLegPos2 = presolveCenterLegPos + presolved postTranslate.
 				Vector3 presolvedCenterLegPos2 = temp.centerLegPos;
 				if( neckWeight > IKEpsilon || eyesWeight > IKEpsilon ) {
 					Vector3 presolvedTranslate;
@@ -659,15 +656,12 @@ namespace SA
 					Vector3 vecX = centerArmDirX * currentArmHalfLen;
 					centerArmPos = Vector3.Lerp( _tempArmPos[0] + vecX, _tempArmPos[1] - vecX, temp.arms.lerpRate );
 					centerArmPos2 = Vector3.Lerp( _tempArmPos2[0] + vecX, _tempArmPos2[1] - vecX, temp.arms.lerpRate ); // Test
-
 #if SAFULLBODYIK_DEBUG
 					_debugData.AddPoint( centerArmPos, Color.blue, 0.024f );
 					_debugData.AddPoint( centerArmPos2, Color.blue, 0.024f );
-
 					_debugData.AddPoint( _tempArmPos[0] + vecX, Color.white );
 					_debugData.AddPoint( _tempArmPos[1] - vecX, Color.black );
 #endif
-
 					centerArmDirY = centerArmPos - temp.centerLegPos;
 					centerArmDirY2 = centerArmPos2 - temp.centerLegPos;
 				}
@@ -679,31 +673,32 @@ namespace SA
 				// Neck
 				if( neckWeight > IKEpsilon ) {
 					Vector3 centerLegPos = presolvedCenterLegPos2;
-
-					Matrix3x3 toBasis2, toBasis;
-					_ComputeBasisFromXYLockY( out toBasis2, ref centerArmDirX2, ref centerArmDirY2 );
-					_ComputeBasisFromXYLockY( out toBasis, ref centerArmDirX, ref centerArmDirY );
-					toBasis2 = toBasis2.Multiply( ref _centerLegToArmBasisInv );
-					toBasis = toBasis.Multiply( ref _centerLegToArmBasisInv );
-
-					Vector3 neckPosFrom2 = toBasis2.Multiply( _neckBone._defaultPosition - _defaultCenterLegPos ) + centerLegPos;
-					Vector3 neckPosFrom = toBasis.Multiply( _neckBone._defaultPosition - _defaultCenterLegPos ) + centerLegPos;
 					Vector3 neckPosTo = _neckEffector.worldPosition;
 
+					Matrix3x3 toBasis2, toBasis;
 					float theta;
 					Vector3 axis;
-					if( _ComputeThetaAxis( ref centerLegPos, ref neckPosFrom2, ref neckPosTo, out theta, out axis ) ) {
-						Matrix3x3 rotateBasis2;
-						_LerpRotateBasis( out rotateBasis2, ref axis, theta, _upperNeckRate2 * neckWeight );
-						centerArmDirX2 = rotateBasis2.Multiply( centerArmDirX2 );
-						centerArmDirY2 = rotateBasis2.Multiply( centerArmDirY2 );
+
+					if( _ComputeBasisFromXYLockY( out toBasis2, ref centerArmDirX2, ref centerArmDirY2 ) ) {
+						toBasis2 = toBasis2.Multiply( ref _centerLegToArmBasisInv );
+						Vector3 neckPosFrom2 = toBasis2.Multiply( _neckBone._defaultPosition - _defaultCenterLegPos ) + centerLegPos;
+						if( _ComputeThetaAxis( ref centerLegPos, ref neckPosFrom2, ref neckPosTo, out theta, out axis ) ) {
+							Matrix3x3 rotateBasis2;
+							_LerpRotateBasis( out rotateBasis2, ref axis, theta, _upperNeckRate2 * neckWeight );
+							centerArmDirX2 = rotateBasis2.Multiply( centerArmDirX2 );
+							centerArmDirY2 = rotateBasis2.Multiply( centerArmDirY2 );
+						}
 					}
 
-					if( _ComputeThetaAxis( ref centerLegPos, ref neckPosFrom, ref neckPosTo, out theta, out axis ) ) {
-						Matrix3x3 rotateBasis;
-						_LerpRotateBasis( out rotateBasis, ref axis, theta, _upperNeckRate1 * neckWeight );
-						centerArmDirX = rotateBasis.Multiply( centerArmDirX );
-						centerArmDirY = rotateBasis.Multiply( centerArmDirY );
+					if( _ComputeBasisFromXYLockY( out toBasis, ref centerArmDirX, ref centerArmDirY ) ) {
+						toBasis = toBasis.Multiply( ref _centerLegToArmBasisInv );
+						Vector3 neckPosFrom = toBasis.Multiply( _neckBone._defaultPosition - _defaultCenterLegPos ) + centerLegPos;
+						if( _ComputeThetaAxis( ref centerLegPos, ref neckPosFrom, ref neckPosTo, out theta, out axis ) ) {
+							Matrix3x3 rotateBasis;
+							_LerpRotateBasis( out rotateBasis, ref axis, theta, _upperNeckRate1 * neckWeight );
+							centerArmDirX = rotateBasis.Multiply( centerArmDirX );
+							centerArmDirY = rotateBasis.Multiply( centerArmDirY );
+						}
 					}
 				}
 
@@ -711,139 +706,136 @@ namespace SA
 				if( eyesWeight > IKEpsilon ) {
 					// Based on centerArmDirX2 / centerArmDirY2
 					Matrix3x3 toBasis;
-					_ComputeBasisFromXYLockY( out toBasis, ref centerArmDirX2, ref centerArmDirY2 );
+					if( _ComputeBasisFromXYLockY( out toBasis, ref centerArmDirX2, ref centerArmDirY2 ) ) {
+						Matrix3x3 toBasisGlobal = toBasis * _centerLegToArmBasisInv;
 
-					Matrix3x3 toBasisGlobal = toBasis * _centerLegToArmBasisInv;
+						Matrix3x3 fromBasis = toBasis;
 
-					Matrix3x3 fromBasis = toBasis;
+						toBasis *= _centerLegToArmBaseBasisInv;
 
-					toBasis *= _centerLegToArmBaseBasisInv;
-
-					Vector3 eyePos = toBasisGlobal.Multiply( _defaultCenterEyePos - _defaultCenterLegPos ) + presolvedCenterLegPos2;
-					Vector3 eyeDir = _eyesEffector.worldPosition - eyePos;
-
-					{
-						float _upperEyesXLimit = Mathf.Sin( _upperEyesXAngle );
-						float _upperEyesYUpLimit = Mathf.Sin( _upperEyesYUpAngle );
-						float _upperEyesYDownLimit = Mathf.Sin( _upperEyesYDownAngle );
-
-						eyeDir = toBasis.transpose.Multiply( eyeDir ); // to Local
-
-						if( eyeDir.y >= 0.0f ) {
-							eyeDir.y *= _upperEyesYUpRate;
-                        } else {
-							eyeDir.y *= _upperEyesYDownRate;
-						}
-
-						_SafeNormalize( ref eyeDir );
-
-						if( eyeDir.z < 0.0f ) {
-                            float offset = Mathf.Clamp( _upperEyesZOffset, 0.0f, 0.99f );
-							if( offset > IKEpsilon ) {
-								if( eyeDir.z > -offset ) {
-									eyeDir.z = 0.0f;
-								} else {
-									eyeDir.z = (eyeDir.z + offset) / (1.0f - offset);
-								}
-								_SafeNormalize( ref eyeDir );
-							}
-						}
-
-						_LimitXY( ref eyeDir, _upperEyesXLimit, _upperEyesXLimit, _upperEyesYDownLimit, _upperEyesYUpLimit );
-
-						eyeDir = toBasis.Multiply( eyeDir ); // to Global
+						Vector3 eyePos = toBasisGlobal.Multiply( _defaultCenterEyePos - _defaultCenterLegPos ) + presolvedCenterLegPos2;
+						Vector3 eyeDir = _eyesEffector.worldPosition - eyePos;
 
 						{
-							Vector3 xDir = toBasis.column0;
-							Vector3 yDir = toBasis.column1;
-							Vector3 zDir = eyeDir;
+							float _upperEyesXLimit = Mathf.Sin( _upperEyesXAngle );
+							float _upperEyesYUpLimit = Mathf.Sin( _upperEyesYUpAngle );
+							float _upperEyesYDownLimit = Mathf.Sin( _upperEyesYDownAngle );
 
-							if( _ComputeBasisLockZ( out toBasis, ref xDir, ref yDir, ref zDir ) ) {
-								// Nothing.
+							eyeDir = toBasis.transpose.Multiply( eyeDir ); // to Local
+
+							if( eyeDir.y >= 0.0f ) {
+								eyeDir.y *= _upperEyesYUpRate;
+							} else {
+								eyeDir.y *= _upperEyesYDownRate;
+							}
+
+							_SafeNormalize( ref eyeDir );
+
+							if( eyeDir.z < 0.0f ) {
+								float offset = Mathf.Clamp( _upperEyesZOffset, 0.0f, 0.99f );
+								if( offset > IKEpsilon ) {
+									if( eyeDir.z > -offset ) {
+										eyeDir.z = 0.0f;
+									} else {
+										eyeDir.z = (eyeDir.z + offset) / (1.0f - offset);
+									}
+									_SafeNormalize( ref eyeDir );
+								}
+							}
+
+							_LimitXY( ref eyeDir, _upperEyesXLimit, _upperEyesXLimit, _upperEyesYDownLimit, _upperEyesYUpLimit );
+
+							eyeDir = toBasis.Multiply( eyeDir ); // to Global
+
+							{
+								Vector3 xDir = toBasis.column0;
+								Vector3 yDir = toBasis.column1;
+								Vector3 zDir = eyeDir;
+
+								if( _ComputeBasisLockZ( out toBasis, ref xDir, ref yDir, ref zDir ) ) {
+									// Nothing.
+								}
 							}
 						}
-					}
 
-					toBasis *= _centerLegToArmBaseBasis;
+						toBasis *= _centerLegToArmBaseBasis;
 
-					Matrix3x3 solveBasis;
-					if( _upperEyesRate2 > IKEpsilon ) {
-						_Lerp( out solveBasis, ref fromBasis, ref toBasis, _upperEyesRate2 );
-						centerArmDirX2 = solveBasis.column0;
-						centerArmDirY2 = solveBasis.column1;
-					}
+						Matrix3x3 solveBasis;
+						if( _upperEyesRate2 > IKEpsilon ) {
+							_Lerp( out solveBasis, ref fromBasis, ref toBasis, _upperEyesRate2 );
+							centerArmDirX2 = solveBasis.column0;
+							centerArmDirY2 = solveBasis.column1;
+						}
 
-					if( _upperEyesRate1 > IKEpsilon ) {
-						_ComputeBasisFromXYLockY( out fromBasis, ref centerArmDirX, ref centerArmDirY );
-						_Lerp( out solveBasis, ref fromBasis, ref toBasis, _upperEyesRate1 );
-						centerArmDirX = solveBasis.column0;
-						centerArmDirY = solveBasis.column1;
+						if( _upperEyesRate1 > IKEpsilon ) {
+							if( _ComputeBasisFromXYLockY( out fromBasis, ref centerArmDirX, ref centerArmDirY ) ) {
+								_Lerp( out solveBasis, ref fromBasis, ref toBasis, _upperEyesRate1 );
+								centerArmDirX = solveBasis.column0;
+								centerArmDirY = solveBasis.column1;
+							}
+						}
 					}
 				}
 
 				if( neckWeight > IKEpsilon || eyesWeight > IKEpsilon ) {
-					// todo: Update 
-					// todo: centerArmPos(Continuous Solver)
+					if( continuousSolverEnabled && _stableCenterLegRate > IKEpsilon ) {
+						float centerLegToArmLength = (_defaultCenterArmPos - _defaultCenterLegPos).magnitude;
+
+						centerArmPos = presolveCenterLegPos + centerArmDirY * centerLegToArmLength;
+                    }
 				}
 
 				{
-					Matrix3x3 rotateBasis = Matrix3x3.identity;
-
 					Matrix3x3 toBasis;
-					_ComputeBasisFromXYLockY( out toBasis, ref centerArmDirX, ref centerArmDirY );
+					if( _ComputeBasisFromXYLockY( out toBasis, ref centerArmDirX, ref centerArmDirY ) ) {
+						Matrix3x3 rotateBasis = Matrix3x3.identity;
 
-					if( _internalValues.animatorEnabled || _internalValues.resetTransforms ) {
-						// for animatorEnabled or resetTransform(Base on armPos)
-						if( continuousSolverEnabled && _stableCenterLegRate > IKEpsilon ) {
-							Matrix3x3 presolveCenterLegBasis = Matrix3x3.identity;
-							Vector3 solveDirY = centerArmPos - presolveCenterLegPos;
-							Vector3 solveDirX = centerArmDirX;
-							if( _SafeNormalize( ref solveDirY ) ) {
-								_ComputeBasisFromXYLockY( out presolveCenterLegBasis, ref solveDirX, ref solveDirY );
-							}
-
-							Matrix3x3 tempBasis;
-							_Lerp( out tempBasis, ref toBasis, ref presolveCenterLegBasis, _stableCenterLegRate );
-							toBasis = tempBasis;
-						}
-
-						Matrix3x3 fromBasis = Matrix3x3.identity;
-						Vector3 currentDirX = temp.armPos[1] - temp.armPos[0];
-						Vector3 currentDirY = (temp.armPos[1] + temp.armPos[0]) * 0.5f - temp.centerLegPos;
-						if( _SafeNormalize( ref currentDirX, ref currentDirY ) ) {
-							_ComputeBasisFromXYLockY( out fromBasis, ref currentDirX, ref currentDirY );
-						}
-
-						rotateBasis = toBasis * fromBasis.transpose;
-						if( _lerpCenterLegRate < 1.0f - IKEpsilon ) {
-							_LerpToIdentity( ref rotateBasis, 1.0f - _lerpCenterLegRate );
-						}
-					} else { // for continuousSolverEnabled.(Base on centerLegBasis)
-						toBasis *= _centerLegToArmBasisInv;
-
-						if( continuousSolverEnabled && _stableCenterLegRate > IKEpsilon ) {
-							Matrix3x3 presolveCenterLegBasis = Matrix3x3.identity;
-							Vector3 solveDirY = centerArmPos - presolveCenterLegPos;
-							Vector3 solveDirX = centerArmDirX;
-							if( _SafeNormalize( ref solveDirY ) ) {
-								if( _ComputeBasisFromXYLockY( out presolveCenterLegBasis, ref solveDirX, ref solveDirY ) ) {
-									presolveCenterLegBasis *= _centerLegToArmBasisInv;
+						if( _internalValues.animatorEnabled || _internalValues.resetTransforms ) {
+							// for animatorEnabled or resetTransform(Base on armPos)
+							if( continuousSolverEnabled && _stableCenterLegRate > IKEpsilon ) {
+								Matrix3x3 presolveCenterLegBasis = Matrix3x3.identity;
+								Vector3 solveDirY = centerArmPos - presolveCenterLegPos;
+								Vector3 solveDirX = centerArmDirX;
+								if( _SafeNormalize( ref solveDirY ) && _ComputeBasisFromXYLockY( out presolveCenterLegBasis, ref solveDirX, ref solveDirY ) ) {
+									Matrix3x3 tempBasis;
+									_Lerp( out tempBasis, ref toBasis, ref presolveCenterLegBasis, _stableCenterLegRate );
+									toBasis = tempBasis;
 								}
 							}
 
-							Matrix3x3 tempBasis;
-							_Lerp( out tempBasis, ref toBasis, ref presolveCenterLegBasis, _stableCenterLegRate );
-							toBasis = tempBasis;
+							Matrix3x3 fromBasis = Matrix3x3.identity;
+							Vector3 currentDirX = temp.armPos[1] - temp.armPos[0];
+							Vector3 currentDirY = (temp.armPos[1] + temp.armPos[0]) * 0.5f - temp.centerLegPos;
+							if( _SafeNormalize( ref currentDirY ) && _ComputeBasisFromXYLockY( out fromBasis, ref currentDirX, ref currentDirY ) ) {
+								rotateBasis = toBasis * fromBasis.transpose;
+								if( _lerpCenterLegRate < 1.0f - IKEpsilon ) {
+									_LerpToIdentity( ref rotateBasis, 1.0f - _lerpCenterLegRate );
+								}
+							}
+						} else { // for continuousSolverEnabled.(Base on centerLegBasis)
+							toBasis *= _centerLegToArmBasisInv;
+
+							if( continuousSolverEnabled && _stableCenterLegRate > IKEpsilon ) {
+								Matrix3x3 presolveCenterLegBasis = Matrix3x3.identity;
+								Vector3 solveDirY = centerArmPos - presolveCenterLegPos;
+								Vector3 solveDirX = centerArmDirX;
+								if( _SafeNormalize( ref solveDirY ) && _ComputeBasisFromXYLockY( out presolveCenterLegBasis, ref solveDirX, ref solveDirY ) ) {
+									presolveCenterLegBasis *= _centerLegToArmBasisInv;
+									Matrix3x3 tempBasis;
+									_Lerp( out tempBasis, ref toBasis, ref presolveCenterLegBasis, _stableCenterLegRate );
+									toBasis = tempBasis;
+								}
+							}
+
+							rotateBasis = toBasis * temp.centerLegBasis.transpose;
 						}
 
-						rotateBasis = toBasis * temp.centerLegBasis.transpose;
-					}
+						if( _lerpCenterLegRate < 1.0f - IKEpsilon ) {
+							_LerpToIdentity( ref rotateBasis, 1.0f - _lerpCenterLegRate );
+						}
 
-					if( _lerpCenterLegRate < 1.0f - IKEpsilon ) {
-						_LerpToIdentity( ref rotateBasis, 1.0f - _lerpCenterLegRate );
+						temp.UpperRotation( -1, ref rotateBasis );
 					}
-
-					temp.UpperRotation( -1, ref rotateBasis );
 				}
 
 				{
@@ -1040,45 +1032,30 @@ namespace SA
 				return true;
 			}
 
-			bool _UpperSolve_Solve_GetBaseTransform( out Vector3 baseDirX, out Vector3 baseCenterLegPos )
+			void _UpperSolve_PresolveBaseCenterLegTransform( out Vector3 centerLegPos, out Matrix3x3 centerLegBasis )
 			{
+				Assert( _internalValues != null && _internalValues.continuousSolverEnabled );
 				var temp = _solverInternal;
 				Assert( temp != null );
 
-				if( _footEffectors == null ) {
-					baseDirX = new Vector3( 1.0f, 0.0f, 0.0f );
-					baseCenterLegPos = temp.centerLegPos;
-					return false;
+				_GetBaseCenterLegTransform( out centerLegPos, out centerLegBasis );
+
+				// Presolve LowerSolver. (for continuousSolverEnabled only)
+
+				if( _footEffectors == null || _legEffectorMaxLength == null ) {
+					return;
 				}
 
 				if( !_footEffectors[0].bone.transformIsAlive ||
 					!_footEffectors[1].bone.transformIsAlive ) {
-					baseDirX = new Vector3( 1.0f, 0.0f, 0.0f );
-					baseCenterLegPos = temp.centerLegPos;
-					return false;
+					return;
 				}
 
 				Vector3 footPos0 = _footEffectors[0].positionEnabled ? _footEffectors[0]._hidden_worldPosition : _footEffectors[0].bone.worldPosition;
 				Vector3 footPos1 = _footEffectors[1].positionEnabled ? _footEffectors[1]._hidden_worldPosition : _footEffectors[1].bone.worldPosition;
 
-				baseDirX = footPos1 - footPos0;
-				baseDirX.y = 0.0f;
-				if( !_SafeNormalize( ref baseDirX ) ) {
-					baseDirX = new Vector3( 1.0f, 0.0f, 0.0f );
-					baseCenterLegPos = temp.centerLegPos;
-					return false;
-				}
-
-				Vector3 centerFootPos = (footPos1 + footPos0) * 0.5f;
-
-				Vector3 baseDirY = new Vector3( 0.0f, 1.0f, 0.0f );
-				Vector3 baseDirZ = new Vector3( -baseDirX.z, 0.0f, baseDirX.x );
-				Matrix3x3 baseBasis = Matrix3x3.FromColumn( ref baseDirX, ref baseDirY, ref baseDirZ );
-
-				baseCenterLegPos = baseBasis.Multiply( _defaultCenterLegPos - _defaultCenterFootPos ) + centerFootPos;
-
-				Vector3 baseLegPos0 = baseBasis.Multiply( _legBones[0]._defaultPosition - _defaultCenterLegPos ) + baseCenterLegPos;
-				Vector3 baseLegPos1 = baseBasis.Multiply( _legBones[1]._defaultPosition - _defaultCenterLegPos ) + baseCenterLegPos;
+				Vector3 baseLegPos0 = centerLegBasis.Multiply( _legBones[0]._defaultPosition - _defaultCenterLegPos ) + centerLegPos;
+				Vector3 baseLegPos1 = centerLegBasis.Multiply( _legBones[1]._defaultPosition - _defaultCenterLegPos ) + centerLegPos;
 
 				bool isLimited = false;
 
@@ -1096,14 +1073,12 @@ namespace SA
 
 				if( isLimited ) {
 					if( _footEffectors[0].positionEnabled || _footEffectors[1].positionEnabled ) {
-						Vector3 vecX = baseDirX * _defaultCenterLegHalfLen;
-						baseCenterLegPos = Vector3.Lerp( baseLegPos0 + vecX, baseLegPos1 - vecX, temp.legs.lerpRate );
+						Vector3 vecX = centerLegBasis.column0 * _defaultCenterLegHalfLen;
+						centerLegPos = Vector3.Lerp( baseLegPos0 + vecX, baseLegPos1 - vecX, temp.legs.lerpRate );
 					} else {
-						baseCenterLegPos = (baseLegPos0 + baseLegPos1) * 0.5f;
+						centerLegPos = (baseLegPos0 + baseLegPos1) * 0.5f;
 					}
 				}
-
-				return true;
 			}
 
 			void _UpperSolve_Transform( int origIndex, ref Matrix3x3 transformBasis )
@@ -1446,6 +1421,7 @@ namespace SA
 				Matrix3x3 centerLegBasis = temp.centerLegBasis;
 
 				if( rotationEnabled ) {
+#if false
 					Matrix3x3 centerLegBasisTo = _pelvisEffector.worldRotation * Inverse( _pelvisEffector._defaultRotation );
 					Matrix3x3 centerLegBasisFrom = centerLegBasis;
 
@@ -1479,6 +1455,19 @@ namespace SA
 
 					temp.LowerRotation( -1, ref centerLegRotationBasis, true );
 					centerLegBasis = temp.centerLegBasis;
+#else
+					Quaternion centerLegRotationTo = _pelvisEffector.worldRotation * Inverse( _pelvisEffector._defaultRotation );
+					Quaternion centerLegRotationFrom = centerLegBasis;
+
+					Quaternion centerLegRotation = centerLegRotationTo * Inverse( centerLegRotationFrom );
+
+					if( _pelvisEffector.rotationWeight < 1.0f - IKEpsilon ) {
+						centerLegRotation = Quaternion.Lerp( Quaternion.identity, centerLegRotation, _pelvisEffector.rotationWeight );
+					}
+
+					temp.LowerRotation( -1, ref centerLegRotation, true );
+					centerLegBasis = temp.centerLegBasis;
+#endif
 				}
 
 				if( positionEnabled ) {
@@ -1495,8 +1484,18 @@ namespace SA
 			void _ResetTransforms()
 			{
 				Assert( _internalValues != null && _internalValues.resetTransforms );
-
 				Matrix3x3 centerLegBasis = Matrix3x3.identity;
+				Vector3 centerLegPos = Vector3.zero;
+				_GetBaseCenterLegTransform( out centerLegPos, out centerLegBasis );
+				_ResetCenterLegTransform( ref centerLegPos, ref centerLegBasis );
+			}
+
+			void _GetBaseCenterLegTransform( out Vector3 centerLegPos, out Matrix3x3 centerLegBasis )
+			{
+				// Use from resetTransforms & continuousSolverEnabled.
+				Assert( _internalValues != null );
+
+				centerLegBasis = Matrix3x3.identity;
 				if( _pelvisEffector != null && _pelvisEffector.rotationEnabled && _pelvisEffector.rotationWeight > IKEpsilon ) {
 					Quaternion centerLegRotation = _pelvisEffector.worldRotation * Inverse( _pelvisEffector._defaultRotation );
 					if( _pelvisEffector.rotationWeight < 1.0f - IKEpsilon && _rootEffector != null && _rootEffector.transformIsAlive ) {
@@ -1509,7 +1508,7 @@ namespace SA
 					centerLegBasis = _rootEffector.worldRotation * Inverse( _rootEffector._defaultRotation );
 				}
 
-				Vector3 centerLegPos = Vector3.zero;
+				centerLegPos = Vector3.zero;
 				if( _pelvisEffector != null && _pelvisEffector.positionEnabled && _pelvisEffector.positionWeight > IKEpsilon ) {
 					centerLegPos = centerLegBasis.Multiply( _defaultCenterLegPos - _pelvisEffector.defaultPosition ) + _pelvisEffector.worldPosition;
 					if( _pelvisEffector.positionWeight < 1.0f - IKEpsilon && _rootEffector != null && _rootEffector.transformIsAlive ) {
@@ -1519,8 +1518,6 @@ namespace SA
 				} else if( _rootEffector != null && _rootEffector.transformIsAlive ) {
 					centerLegPos = centerLegBasis.Multiply( _defaultCenterLegPos - _rootEffector._defaultPosition ) + _rootEffector.worldPosition;
 				}
-
-				_ResetCenterLegTransform( ref centerLegPos, ref centerLegBasis );
 			}
 
 			void _ResetCenterLegTransform( ref Vector3 centerLegPos, ref Matrix3x3 centerLegBasis )
@@ -2020,6 +2017,7 @@ namespace SA
 
 					if( pullLength == 2 ) {
 						float lerpRate = limb.lerpRate;
+						// Fix for rotate 180 degrees or more.( half rotation in GetRotation & double rotation in origRotation * origRotation. )
 						Quaternion origRotation0 = _GetRotation( ref this.origAxis[0], this.origTheta[0], this.origFeedbackRate[0] * 0.5f );
 						Quaternion origRotation1 = _GetRotation( ref this.origAxis[1], this.origTheta[1], this.origFeedbackRate[1] * 0.5f );
 						origRotation = Quaternion.Lerp( origRotation0, origRotation1, lerpRate );

@@ -188,13 +188,18 @@ namespace SA
 				fbik._settings.animatorEnabled = (FullBodyIK.AutomaticBool)EditorGUILayout.EnumPopup( "Animator Enabled", fbik._settings.animatorEnabled );
 				fbik._settings.resetTransforms = (FullBodyIK.AutomaticBool)EditorGUILayout.EnumPopup( "Reset Transforms", fbik._settings.resetTransforms );
 				fbik._settings.automaticConfigureTwistEnabled = EditorGUILayout.Toggle( "Automatic Configure Twist Enabled", fbik._settings.automaticConfigureTwistEnabled );
-				fbik._settings.overrideAutomaticKneePosition = EditorGUILayout.Toggle( "Override Automatic Knee Position", fbik._settings.overrideAutomaticKneePosition );
-                fbik._settings.automaticKneeBaseAngle = EditorGUILayout.FloatField( "Automatic Knee Base Angle", fbik._settings.automaticKneeBaseAngle );
 				fbik._settings.modelTemplate = (FullBodyIK.ModelTemplate)EditorGUILayout.EnumPopup( "Model Template", fbik._settings.modelTemplate );
-            }
+
+				fbik._settings.limbIK.automaticKneeBaseAngle		= EditorGUILayout.FloatField( "Automatic Knee Base Angle", fbik._settings.limbIK.automaticKneeBaseAngle );
+				fbik._settings.limbIK.presolveKneeRate				= EditorGUILayout.FloatField( "Presolve Knee Rate", fbik._settings.limbIK.presolveKneeRate );
+				fbik._settings.limbIK.presolveKneeLerpAngle			= EditorGUILayout.FloatField( "Presolve Knee Lerp Angle", fbik._settings.limbIK.presolveKneeLerpAngle );
+				fbik._settings.limbIK.presolveKneeLerpLengthRate	= EditorGUILayout.FloatField( "Presolve Knee Lerp Length Rate", fbik._settings.limbIK.presolveKneeLerpLengthRate );
+				fbik._settings.limbIK.presolveElbowRate				= EditorGUILayout.FloatField( "Presolve Elbow Rate", fbik._settings.limbIK.presolveElbowRate );
+				fbik._settings.limbIK.presolveElbowLerpLengthRate	= EditorGUILayout.FloatField( "Presolve Elbow Lerp Length Rate", fbik._settings.limbIK.presolveElbowLerpLengthRate );
+			}
 
 #if SAFULLBODYIK_DEBUG
-			EditorGUILayout.Separator();
+	EditorGUILayout.Separator();
 			if( fbik._debugData.debugValues.Count == 0 ) {
 				EditorGUILayout.LabelField( "No debug properties." );
 			}
