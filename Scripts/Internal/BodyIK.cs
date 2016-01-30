@@ -40,11 +40,15 @@ namespace SA
 
 			Vector3 _defaultCenterLegPos = Vector3.zero;
 			Vector3 _defaultCenterFootPos = Vector3.zero;
+
+			Matrix3x3 _centerLegBoneBasis = Matrix3x3.identity;
 			Matrix3x3 _centerLegBoneBasisInv = Matrix3x3.identity;
-			Matrix3x3 _centerLegToArmBasis = Matrix3x3.identity;
-			Matrix3x3 _centerLegToArmBasisInv = Matrix3x3.identity;
-			Matrix3x3 _centerLegToArmBaseBasis = Matrix3x3.identity; // contain rootBaseBasis.
-			Matrix3x3 _centerLegToArmBaseBasisInv = Matrix3x3.identity;
+
+			Matrix3x3 _centerLegToArmBasis = Matrix3x3.identity;        // dirX = legPos[1] - legPos[0], dirY = centerArmPos - centerLegPos
+			Matrix3x3 _centerLegToArmBasisInv = Matrix3x3.identity;     // _centerLegToArmBasis.transpose
+			Matrix3x3 _centerLegToArmBoneToBaseBasis = Matrix3x3.identity;
+			Matrix3x3 _centerLegToArmBaseToBoneBasis = Matrix3x3.identity;
+
 			FastLength[] _shoulderToArmLength = new FastLength[2];
 			FastLength[] _legEffectorMaxLength = new FastLength[2];
 			FastLength[] _armEffectorMaxLength = new FastLength[2];
@@ -165,8 +169,8 @@ namespace SA
 					Vector3 dirY = _defaultCenterArmPos - _defaultCenterLegPos;
 					if( _NormalizeAndComputeBasisFromXYLockY( ref _centerLegToArmBasis, ref dirX, ref dirY ) ) {
 						_centerLegToArmBasisInv = _centerLegToArmBasis.transpose;
-						_centerLegToArmBaseBasisInv = _centerLegToArmBasisInv * _internalValues.defaultRootBasis;
-						_centerLegToArmBaseBasis = _centerLegToArmBaseBasisInv.transpose;
+						_centerLegToArmBoneToBaseBasis = _centerLegToArmBasisInv * _internalValues.defaultRootBasis;
+						_centerLegToArmBaseToBoneBasis = _centerLegToArmBoneToBaseBasis.transpose;
 					}
 				}
 
@@ -180,11 +184,11 @@ namespace SA
 
 				if( _torsoBone != null && _legBones != null ) {
 					Assert( _torsoBone.transformIsAlive && _legBones[0].transformIsAlive && _legBones[1].transformIsAlive ); // Already checked.
-					if( _ComputeCenterLegBasis( out _centerLegBoneBasisInv,
+					if( _ComputeCenterLegBasis( out _centerLegBoneBasis,
 						ref _torsoBone._defaultPosition,
 						ref _legBones[0]._defaultPosition,
 						ref _legBones[1]._defaultPosition ) ) {
-						_centerLegBoneBasisInv = _centerLegBoneBasisInv.transpose;
+						_centerLegBoneBasisInv = _centerLegBoneBasis.transpose;
 					}
 				}
 
@@ -711,7 +715,7 @@ namespace SA
 
 						Matrix3x3 fromBasis = toBasis;
 
-						toBasis *= _centerLegToArmBaseBasisInv;
+						toBasis *= _centerLegToArmBoneToBaseBasis;
 
 						Vector3 eyePos = toBasisGlobal.Multiply( _defaultCenterEyePos - _defaultCenterLegPos ) + presolvedCenterLegPos2;
 						Vector3 eyeDir = _eyesEffector.worldPosition - eyePos;
@@ -758,7 +762,7 @@ namespace SA
 							}
 						}
 
-						toBasis *= _centerLegToArmBaseBasis;
+						toBasis *= _centerLegToArmBaseToBoneBasis;
 
 						Matrix3x3 solveBasis;
 						if( _upperEyesRate2 > IKEpsilon ) {
@@ -785,6 +789,7 @@ namespace SA
                     }
 				}
 
+				// centerLeg(Pelvis)
 				{
 					Matrix3x3 toBasis;
 					if( _ComputeBasisFromXYLockY( out toBasis, ref centerArmDirX, ref centerArmDirY ) ) {
@@ -889,7 +894,6 @@ namespace SA
 
 				if( _upper_solveTorso ) {
 
-					//float centerLegToArmLength = (_neckBone._defaultPosition - _defaultCenterLegPos).magnitude;
 					float centerLegToArmLength = (_defaultCenterArmPos - _defaultCenterLegPos).magnitude;
 
 					int solveLength = Mathf.Min( torsoLength, 2 );
@@ -903,7 +907,7 @@ namespace SA
 
 					if( _internalValues.animatorEnabled || _internalValues.resetTransforms ) {
 						for( int i = 0; i < solveLength; ++i ) {
-							Vector3 origPos = temp.torsoPos[i];
+                            Vector3 origPos = temp.torsoPos[i];
 
 							Vector3 currentDirX = temp.armPos[1] - temp.armPos[0];
 							Vector3 currentDirY = (temp.armPos[1] + temp.armPos[0]) * 0.5f - origPos;
@@ -911,7 +915,7 @@ namespace SA
 							Vector3 targetDirX = centerArmDirX2;
 							Vector3 targetDirY = centerArmPosY2 - origPos;
 
-							if( !_SafeNormalize( ref currentDirX, ref currentDirY, ref targetDirY ) ) {
+							if( !_SafeNormalize( ref currentDirY, ref targetDirY ) ) {
 								continue; // Skip.
 							}
 
@@ -919,12 +923,13 @@ namespace SA
 							Vector3 dirY = targetDirY;
 
 							if( i == 0 ) { // Torso
-								dirX = Vector3.Lerp( currentDirX, targetDirX, _torsoDirXLegToArmRate );
-								if( !_SafeNormalize( ref dirX ) ) { // Failsafe.
-									dirX = currentDirX;
+								if( !_SafeNormalize( ref currentDirX ) ) {
+									continue; // Skip.
 								}
 
-								dirY = Vector3.Lerp( currentDirY, targetDirY, 0.5f ); // Test Rate!!!
+								dirX = Vector3.Lerp( currentDirX, targetDirX, _torsoDirXLegToArmRate );
+
+								dirY = Vector3.Lerp( currentDirY, targetDirY, 0.7f ); // Test Rate!!!
 								if( !_SafeNormalize( ref dirY ) ) { // Failsafe.
 									dirY = currentDirY;
 								}
@@ -942,8 +947,8 @@ namespace SA
 							}
 
 							temp.UpperRotation( i, ref rotateBasis );
-						}
-					} else {
+                        }
+                    } else {
 						for( int i = 0; i < solveLength; ++i ) {
 							Vector3 origPos = temp.torsoPos[i];
 							Vector3 dirX = centerArmDirX2;

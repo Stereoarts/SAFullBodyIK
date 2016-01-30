@@ -563,15 +563,86 @@ namespace SA
 							Vector3 dirY = parentBaseBasis.column1; // Use parent boneTransform.
 							Vector3 dirZ = Vector3.Cross( dirX, dirY );
 							dirX = (_limbIKSide == Side.Left) ? -baseBasis.column0 : baseBasis.column0;
+
 							if( _SafeNormalize( ref dirZ ) ) {
-								float elbowCosTheta = Mathf.Cos( 30.0f * Mathf.Deg2Rad );
-								float elbowSinTheta = Mathf.Sin( 30.0f * Mathf.Deg2Rad );
+								// 1st pass
+								float elbowCosTheta = Mathf.Cos( 30.0f * Mathf.Deg2Rad ); // todo: Precompute(Cache
+								float elbowSinTheta = Mathf.Sin( 30.0f * Mathf.Deg2Rad ); // todo: Precompute(Cache
+
 								bendingPos = beginPos + dirX * moveC
 									+ -dirY * moveS * elbowCosTheta
 									+ -dirZ * moveS * elbowSinTheta;
+#if SAFULLBODYIK_DEBUG
+								_debugData.AddPoint( bendingPos, Color.black, 0.05f );
+#endif
+								Vector3 bendingDir = bendingPos - beginPos;
+								if( _SafeNormalize( ref bendingDir ) ) {
+									Vector3 localBendingDir = parentBaseBasis.transpose.Multiply( bendingDir );
+
+									if( localBendingDir.z < 0.0f ) {
+										bool isLimited = false;
+										float elbowLimitXTheta = Mathf.Sin( 15.0f * Mathf.Deg2Rad );
+										if( _limbIKSide == Side.Left ) {
+											if( localBendingDir.x > -elbowLimitXTheta ) {
+												Vector3 limitedDir = localBendingDir;
+												limitedDir.x = -elbowLimitXTheta;
+												limitedDir.z = -Sqrt( 1.0f - (limitedDir.x * limitedDir.x + limitedDir.y * limitedDir.y) );
+												localBendingDir = limitedDir;
+												isLimited = true;
+                                            }
+										} else {
+											if( localBendingDir.x < elbowLimitXTheta ) {
+												Vector3 limitedDir = localBendingDir;
+												limitedDir.x = elbowLimitXTheta;
+												limitedDir.z = -Sqrt( 1.0f - (limitedDir.x * limitedDir.x + limitedDir.y * limitedDir.y) );
+												localBendingDir = limitedDir;
+												isLimited = true;
+											}
+										}
+										if( isLimited ) {
+											bendingDir = parentBaseBasis.Multiply( localBendingDir );
+											bendingPos = beginPos + bendingDir * _beginToBendingLength;
+#if SAFULLBODYIK_DEBUG
+											_debugData.AddPoint( bendingPos, Color.red, 0.05f );
+#endif
+										}
+									}
+
+                                }
 							} else { // Failsafe.
 								bendingPos = beginPos + dirX * moveC + -baseBasis.column2 * moveS;
 							}
+
+							//Vector3 localDirX = parentBaseBasis.transpose.Multiply( dirX );
+
+
+
+							// Compute Dot effectorDir / parentBaseBasis.
+							//float xTheta = Vector3.Dot( dirX, parentBaseBasis.column0 );
+							//float yTheta = Vector3.Dot( dirX, parentBaseBasis.column1 );
+							//float zTheta = Vector3.Dot( dirX, parentBaseBasis.column2 );
+
+#if false
+
+							Vector3 dirX = baseBasis.column0;
+							Vector3 dirY = parentBaseBasis.column1; // Use parent boneTransform.
+							Vector3 dirZ = Vector3.Cross( dirX, dirY );
+							dirX = (_limbIKSide == Side.Left) ? -baseBasis.column0 : baseBasis.column0;
+							if( _SafeNormalize( ref dirZ ) ) {
+								// 1st pass
+								float elbowCosTheta = Mathf.Cos( 30.0f * Mathf.Deg2Rad ); // todo: Precompute(Cache
+								float elbowSinTheta = Mathf.Sin( 30.0f * Mathf.Deg2Rad ); // todo: Precompute(Cache
+
+								bendingPos = beginPos + dirX * moveC
+									+ -dirY * moveS * elbowCosTheta
+									+ -dirZ * moveS * elbowSinTheta;
+#if SAFULLBODYIK_DEBUG
+								_debugData.AddPoint( bendingPos, Color.black, 0.05f );
+#endif
+							} else { // Failsafe.
+								bendingPos = beginPos + dirX * moveC + -baseBasis.column2 * moveS;
+							}
+#endif
 						} else { // Leg
 							if( IsFuzzy( _settings.limbIK.automaticKneeBaseAngle, 0.0f ) ) {
 								bendingPos = beginPos + -baseBasis.column1 * moveC + baseBasis.column2 * moveS;
