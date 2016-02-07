@@ -889,7 +889,7 @@ namespace SA
 			dir = Vector3.zero;
 			return false;
 		}
-
+		
 		public static bool _SafeNormalize( ref Vector3 dir )
 		{
 			float length = dir.magnitude;
@@ -1175,6 +1175,37 @@ namespace SA
 			public static implicit operator float ( CachedDegreesToCos this_ )
 			{
 				return this_.cos;
+			}
+		}
+
+		public struct CachedDegreesToCosSin
+		{
+			float _degrees;
+			public float cos;
+			public float sin;
+
+			public static readonly CachedDegreesToCosSin zero = new CachedDegreesToCosSin( 0.0f, 1.0f, 0.0f );
+
+			public CachedDegreesToCosSin( float degrees )
+			{
+				_degrees = degrees;
+				cos = (float)System.Math.Cos( degrees * Mathf.Deg2Rad );
+				sin = (float)System.Math.Sin( degrees * Mathf.Deg2Rad );
+			}
+
+			public CachedDegreesToCosSin( float degrees, float cos_, float sin_ )
+			{
+				_degrees = degrees;
+				cos = cos_;
+				sin = sin_;
+			}
+
+			public void Reset( float degrees )
+			{
+				if( _degrees != degrees ) {
+					cos = (float)System.Math.Cos( degrees * Mathf.Deg2Rad );
+					sin = (float)System.Math.Sin( degrees * Mathf.Deg2Rad );
+				}
 			}
 		}
 
