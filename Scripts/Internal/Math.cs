@@ -366,6 +366,30 @@ namespace SA
 					row2.x * m.row0.z + row2.y * m.row1.z + row2.z * m.row2.z );
 			}
 
+			public Vector3 Multiply_Column0( ref Matrix3x3 m )
+			{
+				return new Vector3(
+					row0.x * m.row0.x + row0.y * m.row1.x + row0.z * m.row2.x,
+					row1.x * m.row0.x + row1.y * m.row1.x + row1.z * m.row2.x,
+					row2.x * m.row0.x + row2.y * m.row1.x + row2.z * m.row2.x );
+			}
+
+			public Vector3 Multiply_Column1( ref Matrix3x3 m )
+			{
+				return new Vector3(
+					row0.x * m.row0.y + row0.y * m.row1.y + row0.z * m.row2.y,
+					row1.x * m.row0.y + row1.y * m.row1.y + row1.z * m.row2.y,
+					row2.x * m.row0.y + row2.y * m.row1.y + row2.z * m.row2.y );
+			}
+
+			public Vector3 Multiply_Column2( ref Matrix3x3 m )
+			{
+				return new Vector3(
+					row0.x * m.row0.z + row0.y * m.row1.z + row0.z * m.row2.z,
+					row1.x * m.row0.z + row1.y * m.row1.z + row1.z * m.row2.z,
+					row2.x * m.row0.z + row2.y * m.row1.z + row2.z * m.row2.z );
+			}
+
 			public static Matrix3x3 operator *( Matrix3x3 m1, Matrix3x3 m2 )
 			{
 				return m1.Multiply( ref m2 );

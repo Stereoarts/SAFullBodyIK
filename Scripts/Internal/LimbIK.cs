@@ -12,8 +12,12 @@ namespace SA
 	{
 		public class LimbIK
 		{
-			const float LegMinEffectorLengthRate = 0.5f;
-			const float MaxEffectorLengthRate = 0.995f;
+			const float _EffectorMaxLengthRate = 0.9999f;
+
+			const float _LegEffectorMinLengthRate = 0.5f;
+
+			const float _ElbowBasisForcefixEffectorLengthRate = 0.99f;
+			const float _ElbowBasisForcefixEffectorLengthLerpRate = 0.03f;
 
 #if SAFULLBODYIK_DEBUG
 			DebugData _debugData;
@@ -60,6 +64,9 @@ namespace SA
 			float _leg_upperLimitKneeAngle = 45.0f * Mathf.Deg2Rad;
 			float _leg_upperLimitNearCircleZ = 0.0f;
 			float _leg_upperLimitNearCircleY = 0.0f;
+
+			float _arm_elbowBasisForcefixEffectorLengthBegin = 0.0f;
+			float _arm_elbowBasisForcefixEffectorLengthEnd = 0.0f;
 
 			public LimbIK( FullBodyIK fullBodyIK, LimbIKLocation limbIKLocation )
 			{
@@ -153,7 +160,6 @@ namespace SA
 				_solvedToBendingBoneBasis = _bendingBone._localAxisBasisInv;
 
 				_effectorMaxLength = _beginToBendingLength + Sqrt( _bendingToEndLengthSq );
-				_effectorMaxLength *= MaxEffectorLengthRate;
 				_endEffectorToWorldRotation = Inverse( _endEffector.defaultRotation ) * _endBone._defaultRotation;
 
 				_beginToBendingBoneBasis = _beginBone._localAxisBasisInv * _bendingBone._localAxisBasis;
@@ -164,7 +170,7 @@ namespace SA
 						fullBodyIK._leftLegBones.leg != null &&
 						fullBodyIK._rightLegBones.leg != null ) {
 						var n = fullBodyIK._rightLegBones.leg._defaultPosition - fullBodyIK._leftLegBones.leg._defaultPosition;
-						_legEffectorMinLength = n.magnitude * LegMinEffectorLengthRate;
+						_legEffectorMinLength = n.magnitude * _LegEffectorMinLengthRate;
                     }
 
 					_leg_upperLimitNearCircleZ = _beginToBendingLength * Mathf.Cos( _leg_upperLimitLegAngle )
@@ -172,6 +178,13 @@ namespace SA
 					_leg_upperLimitNearCircleY = _beginToBendingLength * Mathf.Sin( _leg_upperLimitLegAngle )
 												+ _bendingToEndLength * Mathf.Sin( _leg_upperLimitKneeAngle );
 				}
+
+				if( _limbIKType == LimbIKType.Arm ) {
+					_arm_elbowBasisForcefixEffectorLengthBegin = _effectorMaxLength * (_ElbowBasisForcefixEffectorLengthRate - _ElbowBasisForcefixEffectorLengthLerpRate);
+					_arm_elbowBasisForcefixEffectorLengthEnd = _effectorMaxLength * _ElbowBasisForcefixEffectorLengthRate;
+				}
+
+				_effectorMaxLength *= _EffectorMaxLengthRate;
 			}
 
 			// for animatorEnabled
@@ -193,7 +206,6 @@ namespace SA
 						baseBasis = parentBaseBasis * _beginBone._localAxisBasis;
 					}
 				} else {
-					//Vector3 dirY = _effectorToBeginBoneBasis * -effectorDir;
 					Vector3 dirY = -effectorDir;
 					Vector3 basisX = parentBaseBasis.column0;
 					Vector3 basisZ = parentBaseBasis.column2;
@@ -474,25 +486,21 @@ namespace SA
 
 			//------------------------------------------------------------------------------------------------------------
 
-			public static float AngularLerp( float a, float b, float r )
-			{
-				return a + (b - a) * r;
-			}
-
-			public static float AngularLerpR( float a, float b, float r )
-			{
-				return 0.0f;
-			}
-
-			//------------------------------------------------------------------------------------------------------------
-
 			CachedDegreesToCos _presolvedLerpTheta = CachedDegreesToCos.zero;
 			CachedDegreesToCos _automaticKneeBaseTheta = CachedDegreesToCos.zero;
 
 			public bool Solve()
 			{
+				bool r = _SolveInternal();
+				r |= _SolveEndRotation();
+
+				return r;
+			}
+
+			public bool _SolveInternal()
+			{
 				if( !_endEffector.positionEnabled ) {
-					return _SolveEndRotation();
+					return false;
 				}
 
 				if( _beginBone.parentBone == null || !_beginBone.parentBone.transformIsAlive ) {
@@ -745,120 +753,6 @@ namespace SA
 						if( _limbIKType == LimbIKType.Arm ) {
 							Vector3 dirX = (_limbIKSide == Side.Left) ? -baseBasis.column0 : baseBasis.column0;
 							{
-#if false
-								float _armElbowBaseAngle = 30.0f;
-								bool _armElbowUseMap = true;
-								float _armElbowMapNearZ = 0.1f;
-								float _armElbowBackFixRotateY = 0.4f;
-#if SAFULLBODYIK_DEBUG
-								_debugData.UpdateValue( "_armElbowBaseAngle", ref _armElbowBaseAngle );
-								_debugData.UpdateValue( "_armElbowUseMap", ref _armElbowUseMap );
-								_debugData.UpdateValue( "_armElbowMapNearZ", ref _armElbowMapNearZ );
-								_debugData.UpdateValue( "_armElbowBackFixRotateY", ref _armElbowBackFixRotateY );
-#endif
-								float _elbowAngle = _armElbowBaseAngle;
-
-								if( _armElbowUseMap ) {
-									float[] _armElbowAngleMap = new float[]
-									{
-										// Y-up
-										 90.0f,   90.0f,   90.0f, // front
-										 90.0f,   90.0f,   90.0f, // front(nearZ)
-										 90.0f,  -90.0f,  -90.0f, // center
-										-90.0f, -180.0f, -180.0f, // back(nearZ)
-									   -180.0f, -180.0f, -180.0f, // back
-
-										// Y-center
-										 30.0f,   30.0f,   30.0f, // front
-										  0.0f,   30.0f,   30.0f, // front(nearZ)
-										  0.0f,  -60.0f,  -60.0f, // center
-										  0.0f,  -90.0f,  -90.0f, // back(nearZ)
-									    -90.0f,  -90.0f,  -90.0f, // back
-
-										// Y-down
-										 90.0f,   90.0f,   90.0f, // front
-										 90.0f,   90.0f,   90.0f, // front(nearZ)
-										 90.0f,  -30.0f,  -30.0f, // center
-										 90.0f,  -30.0f,  -30.0f, // back(nearZ)
-										-30.0f,  -30.0f,  -30.0f, // back
-									};
-
-									Vector3 localDir = (_limbIKSide == Side.Left) ? localEffectorDir : new Vector3( -localEffectorDir.x, localEffectorDir.y, localEffectorDir.z );
-									bool plusX = (localDir.x >= 0.0f);
-									bool plusY = (localDir.y >= 0.0f);
-									bool plusZ = (localDir.z >= 0.0f);
-
-									Vector3 rate = localDir;
-									if( !plusX ) { rate.x = -rate.x; }
-									if( !plusY ) { rate.y = -rate.y; }
-
-									int mapBaseIndex = 22;
-
-									if( localDir.z >= _armElbowMapNearZ ) {
-										mapBaseIndex -= 3;
-										rate.z = rate.z * (1.0f / (1.0f - _armElbowMapNearZ));
-									} else if( localDir.z <= -_armElbowMapNearZ ) {
-										mapBaseIndex += 3;
-										rate.z = -rate.z * (1.0f / (1.0f - _armElbowMapNearZ));
-									} else if( plusZ ) {
-										rate.z = rate.z * (1.0f / _armElbowMapNearZ);
-									} else {
-										rate.z = -rate.z * (1.0f / _armElbowMapNearZ);
-									}
-
-									float[] map = _armElbowAngleMap;
-
-									int mapX = plusX ? 1 : -1;
-									int mapY = plusY ? -15 : 15;
-									int mapZ = plusZ ? -3 : 3;
-#if true
-									float y0z0 = AngularLerp( map[mapBaseIndex              ], map[mapBaseIndex + mapX              ], rate.x );
-									float y0z1 = AngularLerp( map[mapBaseIndex + mapZ       ], map[mapBaseIndex + mapX + mapZ       ], rate.x );
-									float y1z0 = AngularLerp( map[mapBaseIndex + mapY       ], map[mapBaseIndex + mapX + mapY       ], rate.x );
-									float y1z1 = AngularLerp( map[mapBaseIndex + mapY + mapZ], map[mapBaseIndex + mapX + mapY + mapZ], rate.x );
-
-									float y0 = AngularLerp( y0z0, y0z1, rate.z );
-									float y1 = AngularLerp( y1z0, y1z1, rate.z );
-
-									_elbowAngle = AngularLerp( y0, y1, rate.y );
-#endif
-#if false
-									float x0y0 = Mathf.Lerp( map[mapBaseIndex], map[mapBaseIndex + mapZ], rate.z );
-									float x1y0 = Mathf.Lerp( map[mapBaseIndex + mapX], map[mapBaseIndex + mapX + mapZ], rate.z );
-									float x0y1 = Mathf.Lerp( map[mapBaseIndex + mapY], map[mapBaseIndex + mapY + mapZ], rate.z );
-									float x1y1 = Mathf.Lerp( map[mapBaseIndex + mapX + mapY], map[mapBaseIndex + mapX + mapY + mapZ], rate.z );
-
-									float x0 = Mathf.Lerp( x0y0, x0y1, rate.y );
-									float x1 = Mathf.Lerp( x1y0, x1y1, rate.y );
-
-									if( localDir.z <= -_armElbowMapNearZ && !plusX ) {
-										if( localDir.y >= _armElbowBackFixRotateY ) {
-											_elbowAngle = Mathf.Lerp( x0 - 360.0f, x1, rate.x );
-										} else if( localDir.y <= -_armElbowBackFixRotateY ) {
-											_elbowAngle = Mathf.Lerp( x0, x1, rate.x );
-										} else {
-											float angle0 = Mathf.Lerp( x0, x1, rate.x );
-											float angle1 = Mathf.Lerp( x0 - 360.0f, x1, rate.x );
-											float t2 = _armElbowBackFixRotateY * 2.0f;
-											if( t2 > IKEpsilon ) {
-												float r2 = (localDir.y - _armElbowBackFixRotateY) / t2;
-												float targetAngle2 = Mathf.Lerp( angle0, angle1, r2 );
-												_elbowAngle = Mathf.Lerp( targetAngle2, x1, rate.x );
-											} else { // Failsafe.
-												_elbowAngle = angle0;
-											}
-										}
-									} else {
-										_elbowAngle = Mathf.Lerp( x0, x1, rate.x );
-									}
-#endif
-									if( _limbIKSide == Side.Left ) {
-										Debug.Log( "angle:" + _elbowAngle + " dir:" + localDir.ToString("F4") + " mbi:" + mapBaseIndex + " xyz:" + mapX + ":" + mapY + ":" + mapZ );
-									}
-								}
-#endif
-
-
 #if true
 								// Based localXZ
 								float _armEffectorBackBeginAngle = 5.0f;
@@ -1065,81 +959,48 @@ namespace SA
 				}
 
 				if( !isSolved ) {
-					return _SolveEndRotation();
+					return false;
 				}
 
 				Matrix3x3 beginBasis = Matrix3x3.identity;
 				Matrix3x3 bendingBasis = Matrix3x3.identity;
 
 				if( _limbIKType == LimbIKType.Arm ) {
-#if _ENABLE_LIMBIK_FORCEFIX
-					float _armBasisForcefixLengthRate = 0.999f;
-					float _armBasisForcefixLengthLerpRate = 0.001f;
-#endif
-					float beginToEndLength = _beginToBendingLength + _bendingToEndLength;
-
 					// Memo: Arm Bone Based Y Axis.
 					if( _limbIKSide == Side.Left ) {
 						solvedBeginToBendingDir = -solvedBeginToBendingDir;
 						solvedBendingToEndDir = -solvedBendingToEndDir;
 					}
 
-					Vector3 basisY, basisZ;
-
-#if _ENABLE_LIMBIK_FORCEFIX
-					float forcefixLength = beginToEndLength * _armBasisForcefixLengthRate;
-					if( effectorLen > forcefixLength ) {
-						basisY = baseBasis.column1;
-						basisZ = baseBasis.column2;
-					}
-					else
-#endif
-					{
-						Vector3 dirY = Vector3.Cross( -solvedBeginToBendingDir, solvedBendingToEndDir );
-						if( _limbIKSide == Side.Left ) {
-							dirY = -dirY;
-						}
-						if( !_SafeNormalize( ref dirY ) ) {
-							dirY = baseBasis.column1;
-						}
-						Vector3 dirZ = Vector3.Cross( solvedBeginToBendingDir, dirY );
-						if( !_SafeNormalize( ref dirZ ) ) {
-							dirZ = baseBasis.column2;
-						}
-
-#if _ENABLE_LIMBIK_FORCEFIX
-						float forcefixLerpLength = beginToEndLength * _armBasisForcefixLengthLerpRate;
-						if( effectorLen > forcefixLength - forcefixLerpLength && forcefixLerpLength > IKEpsilon ) {
-							float rate = effectorLen - (forcefixLength - forcefixLerpLength);
-							rate *= 1.0f / forcefixLerpLength;
-							basisY = Vector3.Lerp( dirY, baseBasis.column1, rate );
-							basisZ = Vector3.Lerp( dirZ, baseBasis.column2, rate );
-						} else {
-							basisY = dirY;
-							basisZ = dirZ;
-						}
-#else
-						basisY = dirY;
-						basisZ = dirZ;
-#endif
-					}
-
+					Vector3 basisY = parentBaseBasis.column1;
+					Vector3 basisZ = parentBaseBasis.column2;
 					if( !_ComputeBasisLockX( out beginBasis, ref solvedBeginToBendingDir, ref basisY, ref basisZ ) ) {
-						return _SolveEndRotation();
+						return false;
 					}
 
-					bendingBasis = beginBasis * _beginToBendingBoneBasis;
+					//_arm_elbowBasisForcefixEffectorLengthBegin = _effectorMaxLength * (_ElbowBasisForcefixEffectorLengthRate - _ElbowBasisForcefixEffectorLengthLerpRate);
+					//_arm_elbowBasisForcefixEffectorLengthEnd = _effectorMaxLength * _ElbowBasisForcefixEffectorLengthRate;
 
 					{
-						Vector3 dirY = basisY;
-						Vector3 dirZ = Vector3.Cross( solvedBendingToEndDir, dirY );
-						if( !_SafeNormalize( ref dirZ ) ) {
-							dirZ = bendingBasis.column2;
+						if( effectorLen > _arm_elbowBasisForcefixEffectorLengthEnd ) {
+							basisY = beginBasis.Multiply_Column1( ref _beginToBendingBoneBasis );
+						} else {
+							basisY = Vector3.Cross( -solvedBeginToBendingDir, solvedBendingToEndDir ); // Memo: Require to MaxEffectorLengthRate is less than 1.0
+							if( _limbIKSide == Side.Left ) {
+								basisY = -basisY;
+							}
+
+							if( effectorLen > _arm_elbowBasisForcefixEffectorLengthBegin ) {
+								float t = _arm_elbowBasisForcefixEffectorLengthEnd - _arm_elbowBasisForcefixEffectorLengthBegin;
+								if( t > IKEpsilon ) {
+									float r = (effectorLen - _arm_elbowBasisForcefixEffectorLengthBegin) / t;
+									basisY = Vector3.Lerp( basisY, beginBasis.Multiply_Column1( ref _beginToBendingBoneBasis ), r );
+                                }
+                            }
 						}
-						basisY = dirY;
-						basisZ = dirZ;
-						if( !_ComputeBasisLockX( out bendingBasis, ref solvedBendingToEndDir, ref basisY, ref basisZ ) ) {
-							return _SolveEndRotation();
+
+						if( !_ComputeBasisFromXYLockX( out bendingBasis, ref solvedBendingToEndDir, ref basisY ) ) {
+							return false;
 						}
 					}
 				} else {
@@ -1149,23 +1010,19 @@ namespace SA
 
 					Vector3 basisX = baseBasis.column0;
 					Vector3 basisZ = baseBasis.column2;
-					if( !_ComputeBasisLockY( out beginBasis, ref basisX, ref solvedBeginToBendingDir, ref basisZ ) ) { // Test
-						return _SolveEndRotation();
+					if( !_ComputeBasisLockY( out beginBasis, ref basisX, ref solvedBeginToBendingDir, ref basisZ ) ) {
+						return false;
 					}
 
-					bendingBasis = beginBasis * _beginToBendingBoneBasis;
+					basisX = beginBasis.Multiply_Column0( ref _beginToBendingBoneBasis );
 
-					basisX = bendingBasis.column0;
-					basisZ = bendingBasis.column2;
-					if( !_ComputeBasisLockY( out bendingBasis, ref basisX, ref solvedBendingToEndDir, ref basisZ ) ) { // Test
-						return _SolveEndRotation();
+					if( !_ComputeBasisFromXYLockY( out bendingBasis, ref basisX, ref solvedBendingToEndDir ) ) {
+						return false;
 					}
 				}
 
 				_beginBone.worldRotation = (beginBasis * _beginBone._boneToWorldBasis).GetRotation();
 				_bendingBone.worldRotation = (bendingBasis * _bendingBone._boneToWorldBasis).GetRotation();
-
-				_SolveEndRotation();
 				return true;
 			}
 
