@@ -913,7 +913,12 @@ namespace SA
 			dir = Vector3.zero;
 			return false;
 		}
-		
+
+		public static bool _SafeNormalizeX0( ref Vector3 dir )
+		{
+			return _SafeNormalize( ref dir );
+		}
+
 		public static bool _SafeNormalize( ref Vector3 dir )
 		{
 			float length = dir.magnitude;

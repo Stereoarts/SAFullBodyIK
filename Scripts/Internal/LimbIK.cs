@@ -535,80 +535,16 @@ namespace SA
 				bool _isPresolveBending = true;
 				bool _isEffectorPrefixer = true;
 
-				Vector3 localEffectorDir = new Vector3( 0.0f, 0.0f, 1.0f );
 
 #if SAFULLBODYIK_DEBUG
 				_debugData.UpdateValue( "_isEffectorPrefixer", ref _isEffectorPrefixer );
 				_debugData.UpdateValue( "_isPresolveBending", ref _isPresolveBending );
 				_debugData.UpdateValue( "_isSolveLimbIK", ref _isSolveLimbIK );
 #endif
+
+				Vector3 localEffectorDir = new Vector3( 0.0f, 0.0f, 1.0f );
 				if( _limbIKType == LimbIKType.Arm ) {
-					// Detail map.
-					float _armEffectorBackLimitAngle = 60.0f;
-					float _armEffectorBackLimitAngleDepth = 0.5f;
-					float _armEffectorInnerLimitMaxLengthRate = 0.8f;
-					bool _armEffectorLimitEnabled = false;
-#if SAFULLBODYIK_DEBUG
-					_debugData.UpdateValue( "_armEffectorBackLimitAngle", ref _armEffectorBackLimitAngle );
-					_debugData.UpdateValue( "_armEffectorBackLimitAngleDepth", ref _armEffectorBackLimitAngleDepth );
-					_debugData.UpdateValue( "_armEffectorInnerLimitMaxLengthRate", ref _armEffectorInnerLimitMaxLengthRate );
-					_debugData.UpdateValue( "_armEffectorLimitEnabled", ref _armEffectorLimitEnabled );
-#endif
-					CachedDegreesToCosSin _armEffectorLimitTheta = new CachedDegreesToCosSin( _armEffectorBackLimitAngle );
-
-					Vector3 localEffectorLimitDir;
-					if( _limbIKSide == Side.Left ) {
-						localEffectorLimitDir = new Vector3( _armEffectorLimitTheta.cos, 0.0f, -_armEffectorLimitTheta.sin );
-					} else {
-						localEffectorLimitDir = new Vector3( -_armEffectorLimitTheta.cos, 0.0f, -_armEffectorLimitTheta.sin );
-					}
-
-					bool isLimited = false;
 					localEffectorDir = parentBaseBasis.transpose.Multiply( ref effectorDir );
-					float localEffectorLen = effectorLen;
-
-					if( _armEffectorLimitEnabled ) {
-						if( localEffectorDir.z < 0.0f ) { // Optimized: Prefilter.
-							float d = Vector3.Dot( localEffectorLimitDir, localEffectorDir );
-							if( d * localEffectorLen > _effectorMaxLength * _armEffectorBackLimitAngleDepth ) {
-								Vector3 localEffectorTrans = localEffectorDir * localEffectorLen;
-								var intersectPlane = new Plane( localEffectorLimitDir, localEffectorLimitDir * (_effectorMaxLength * _armEffectorBackLimitAngleDepth) );
-								float distanceToPoint = intersectPlane.GetDistanceToPoint( localEffectorTrans );
-								localEffectorTrans -= localEffectorLimitDir * distanceToPoint;
-								float tempLen = localEffectorTrans.magnitude;
-								if( tempLen > IKEpsilon ) {
-									localEffectorLen = tempLen;
-									localEffectorDir = localEffectorTrans * (1.0f / localEffectorLen);
-									isLimited = true;
-								}
-							}
-						}
-
-						float maxLength = _effectorMaxLength;
-						float localX = (_limbIKSide == Side.Left) ? localEffectorDir.x : -localEffectorDir.x;
-						if( localX >= 0.0f ) {
-							float r = _armEffectorInnerLimitMaxLengthRate;
-							maxLength *= r + (1.0f - r) * (1.0f - localX);
-						}
-
-						if( localEffectorLen > maxLength ) {
-							isLimited = true;
-							localEffectorLen = maxLength;
-						}
-					}
-
-					if( isLimited ) {
-#if SAFULLBODYIK_DEBUG
-						_debugData.AddPoint( effectorPos, Color.black, 0.05f );
-#endif
-						effectorDir = parentBaseBasis.Multiply( localEffectorDir );
-						effectorLen = localEffectorLen;
-						effectorTrans = effectorDir * effectorLen;
-						effectorPos = beginPos + effectorTrans;
-#if SAFULLBODYIK_DEBUG
-						_debugData.AddPoint( effectorPos, Color.white, 0.05f );
-#endif
-					}
 				}
 
 				// pending: Detail processing for Arm too.
@@ -761,8 +697,8 @@ namespace SA
 								float _armEffectorBackEndAngle = -160.0f;
 
 								// Based localYZ
-								float _armEffectorBackCoreUpperAngle = 45.0f;
-								float _armEffectorBackCoreLowerAngle = -45.0f;
+								float _armEffectorBackCoreUpperAngle = 8.0f;
+								float _armEffectorBackCoreLowerAngle = -15.0f;
 
 								float _armElbowBaseAngle = 30.0f;
 								float _armElbowLowerAngle = 90.0f;
@@ -931,7 +867,7 @@ namespace SA
 															+ intersectBendingDir * effectorSinTheta * _beginToBendingLength;
 							Vector3 interToEndTranslate = effectorPos - (beginPos + beginToInterTranslate);
 
-							if( _SafeNormalize( ref beginToInterTranslate ) && _SafeNormalize( ref interToEndTranslate ) ) {
+							if( _SafeNormalize( ref beginToInterTranslate, ref interToEndTranslate ) ) {
 								isSolved = true;
 								solvedBeginToBendingDir = beginToInterTranslate;
 								solvedBendingToEndDir = interToEndTranslate;
@@ -939,7 +875,38 @@ namespace SA
 						}
 					}
 				}
-				
+
+				float _armElbowFrontInnerLimitAngle = 5.0f;
+				float _armElbowBackInnerLimitAngle = 0.0f;
+#if SAFULLBODYIK_DEBUG
+				_debugData.UpdateValue( "_armElbowFrontInnerLimitAngle", ref _armElbowFrontInnerLimitAngle );
+				_debugData.UpdateValue( "_armElbowBackInnerLimitAngle", ref _armElbowBackInnerLimitAngle );
+#endif
+				CachedDegreesToSin _armElbowFrontInnerLimitTheta = new CachedDegreesToSin( _armElbowFrontInnerLimitAngle );
+				CachedDegreesToSin _armElbowBackInnerLimitTheta = new CachedDegreesToSin( _armElbowBackInnerLimitAngle );
+#if true
+				if( isSolved && _limbIKType == LimbIKType.Arm ) {
+					Vector3 localBendingDir = parentBaseBasis.transpose.Multiply( solvedBeginToBendingDir );
+					bool isBack = localBendingDir.z < 0.0f;
+					float limitTheta = isBack ? _armElbowBackInnerLimitTheta.sin : _armElbowFrontInnerLimitTheta.sin;
+
+                    float localX = (_limbIKSide == Side.Left) ? localBendingDir.x : (-localBendingDir.x);
+					if( localX > limitTheta ) {
+						localBendingDir.x = (_limbIKSide == Side.Left) ? limitTheta : -limitTheta;
+                        localBendingDir.z = Sqrt( 1.0f - (localBendingDir.x * localBendingDir.x + localBendingDir.y * localBendingDir.y) );
+						if( isBack ) {
+							localBendingDir.z = -localBendingDir.z;
+                        }
+						Vector3 bendingDir = parentBaseBasis.Multiply( localBendingDir );
+						Vector3 interPos = beginPos + bendingDir * _beginToBendingLength;
+						Vector3 endDir = effectorPos - interPos;
+						if( _SafeNormalize( ref endDir ) ) {
+							solvedBeginToBendingDir = bendingDir;
+							solvedBendingToEndDir = endDir;
+						}
+					}
+                }
+#endif
 				if( !isSolved ) { // Failsafe.
 					Vector3 bendingDir = bendingPos - beginPos;
 					if( _SafeNormalize( ref bendingDir ) ) {
@@ -1007,7 +974,6 @@ namespace SA
 					}
 
 					basisX = beginBasis.Multiply_Column0( ref _beginToBendingBoneBasis );
-
 					if( !_ComputeBasisFromXYLockY( out bendingBasis, ref basisX, ref solvedBendingToEndDir ) ) {
 						return false;
 					}
