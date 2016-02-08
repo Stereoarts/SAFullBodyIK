@@ -55,6 +55,7 @@ namespace SA
 			float _defaultSinTheta = 0.0f;
 			float _defaultCosTheta = 1.0f;
 
+			float _beginToEndMaxLength = 0.0f;
 			float _effectorMaxLength = 0.0f;
 			float _legEffectorMinLength = 0.0f; // for Test.
 
@@ -159,7 +160,7 @@ namespace SA
 				_solvedToBeginBoneBasis = _beginBone._localAxisBasisInv;
 				_solvedToBendingBoneBasis = _bendingBone._localAxisBasisInv;
 
-				_effectorMaxLength = _beginToBendingLength + Sqrt( _bendingToEndLengthSq );
+				_beginToEndMaxLength = _beginToBendingLength + _bendingToEndLength;
 				_endEffectorToWorldRotation = Inverse( _endEffector.defaultRotation ) * _endBone._defaultRotation;
 
 				_beginToBendingBoneBasis = _beginBone._localAxisBasisInv * _bendingBone._localAxisBasis;
@@ -180,11 +181,11 @@ namespace SA
 				}
 
 				if( _limbIKType == LimbIKType.Arm ) {
-					_arm_elbowBasisForcefixEffectorLengthBegin = _effectorMaxLength * (_ElbowBasisForcefixEffectorLengthRate - _ElbowBasisForcefixEffectorLengthLerpRate);
-					_arm_elbowBasisForcefixEffectorLengthEnd = _effectorMaxLength * _ElbowBasisForcefixEffectorLengthRate;
+					_arm_elbowBasisForcefixEffectorLengthBegin = _beginToEndMaxLength * (_ElbowBasisForcefixEffectorLengthRate - _ElbowBasisForcefixEffectorLengthLerpRate);
+					_arm_elbowBasisForcefixEffectorLengthEnd = _beginToEndMaxLength * _ElbowBasisForcefixEffectorLengthRate;
 				}
 
-				_effectorMaxLength *= _EffectorMaxLengthRate;
+				_effectorMaxLength = _beginToEndMaxLength * _EffectorMaxLengthRate;
 			}
 
 			// for animatorEnabled
@@ -753,7 +754,6 @@ namespace SA
 						if( _limbIKType == LimbIKType.Arm ) {
 							Vector3 dirX = (_limbIKSide == Side.Left) ? -baseBasis.column0 : baseBasis.column0;
 							{
-#if true
 								// Based localXZ
 								float _armEffectorBackBeginAngle = 5.0f;
 								float _armEffectorBackCoreBeginAngle = -10.0f;
@@ -829,29 +829,21 @@ namespace SA
 										if( t > IKEpsilon ) {
 											float r = (localXZ.x - _armEffectorBackEndTheta.cos) / t;
 
-											if( localYZ.y >= _armEffectorBackCoreUpperTheta.sin ) {
-												_elbowAngle = Mathf.Lerp( _elbowAngle, targetAngle - 360.0f, r );
-											} else if( localYZ.y <= _armEffectorBackCoreLowerTheta.sin ) {
+											if( localYZ.y <= _armEffectorBackCoreLowerTheta.sin ) {
 												_elbowAngle = Mathf.Lerp( _elbowAngle, targetAngle, r );
+											} else if( localYZ.y >= _armEffectorBackCoreUpperTheta.sin ) {
+												_elbowAngle = Mathf.Lerp( _elbowAngle, targetAngle - 360.0f, r );
 											} else {
 												float angle0 = Mathf.Lerp( _elbowAngle, targetAngle, r ); // Lower
 												float angle1 = Mathf.Lerp( _elbowAngle, targetAngle - 360.0f, r ); // Upper
 												float t2 = _armEffectorBackCoreUpperTheta.sin - _armEffectorBackCoreLowerTheta.sin;
 												if( t2 > IKEpsilon ) {
-													// Weighted average.
 													float r2 = (localYZ.y - _armEffectorBackCoreLowerTheta.sin) / t2;
-
-													float w0 = (r <= IKEpsilon) ? 1.0f : (1.0f / r);
-													float w1 = ((1.0f - r) <= IKEpsilon) ? 1.0f : (1.0f / (1.0f - r));
-													float h0 = (r2 <= IKEpsilon) ? 1.0f : (1.0f / r2);
-													float h1 = ((1.0f - r2) <= IKEpsilon) ? 1.0f : (1.0f / (1.0f - r2));
-
-													float wh_t = w0 + w1 + h0 + h1;
-													if( wh_t > IKEpsilon ) {
-														_elbowAngle = (_elbowAngle * w0 + targetAngle * w1 + angle0 * h0 + angle1 * h1) / wh_t;
-                                                    } else {
-														_elbowAngle = angle0;
+													if( angle0 - angle1 > 180.0f ) {
+														angle1 += 360.0f;
 													}
+
+													_elbowAngle = Mathf.Lerp( angle0, angle1, r2 );
 												} else { // Failsafe.
 													_elbowAngle = angle0;
 												}
@@ -861,7 +853,11 @@ namespace SA
 										float t = (_armEffectorBackBeginTheta.sin - _armEffectorBackCoreBeginTheta.sin);
 										if( t > IKEpsilon ) {
 											float r = (_armEffectorBackBeginTheta.sin - localXZ.z) / t;
-											_elbowAngle = Mathf.Lerp( _elbowAngle, targetAngle - 360.0f, r );
+											if( localDir.y >= 0.0f ) {
+												_elbowAngle = Mathf.Lerp( _elbowAngle, targetAngle, r );
+											} else {
+												_elbowAngle = Mathf.Lerp( _elbowAngle, targetAngle - 360.0f, r );
+											}
 										} else { // Failsafe.
 											_elbowAngle = targetAngle;
 										}
@@ -869,7 +865,6 @@ namespace SA
 										_elbowAngle = targetAngle;
 									}
 								}
-#endif
 
 								Vector3 dirY = parentBaseBasis.column1;
 								Vector3 dirZ = Vector3.Cross( baseBasis.column0, dirY );
@@ -977,9 +972,6 @@ namespace SA
 					if( !_ComputeBasisLockX( out beginBasis, ref solvedBeginToBendingDir, ref basisY, ref basisZ ) ) {
 						return false;
 					}
-
-					//_arm_elbowBasisForcefixEffectorLengthBegin = _effectorMaxLength * (_ElbowBasisForcefixEffectorLengthRate - _ElbowBasisForcefixEffectorLengthLerpRate);
-					//_arm_elbowBasisForcefixEffectorLengthEnd = _effectorMaxLength * _ElbowBasisForcefixEffectorLengthRate;
 
 					{
 						if( effectorLen > _arm_elbowBasisForcefixEffectorLengthEnd ) {
