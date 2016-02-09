@@ -1145,7 +1145,7 @@ namespace SA
 
 		public struct CachedDegreesToSin
 		{
-			float _degrees;
+			public float _degrees;
 			public float sin;
 
 			public static readonly CachedDegreesToSin zero = new CachedDegreesToSin( 0.0f, 0.0f );
@@ -1165,8 +1165,15 @@ namespace SA
 			public void Reset( float degrees )
 			{
 				if( _degrees != degrees ) {
+					_degrees = degrees;
 					sin = (float)System.Math.Sin( degrees * Mathf.Deg2Rad );
 				}
+			}
+
+			public void _Reset( float degrees )
+			{
+				_degrees = degrees;
+				sin = (float)System.Math.Sin( degrees * Mathf.Deg2Rad );
 			}
 
 			public static implicit operator float ( CachedDegreesToSin this_ )
@@ -1177,7 +1184,7 @@ namespace SA
 
 		public struct CachedDegreesToCos
 		{
-			float _degrees;
+			public float _degrees;
 			public float cos;
 
 			public static readonly CachedDegreesToCos zero = new CachedDegreesToCos( 0.0f, 1.0f );
@@ -1197,8 +1204,15 @@ namespace SA
 			public void Reset( float degrees )
 			{
 				if( _degrees != degrees ) {
+					_degrees = degrees;
 					cos = (float)System.Math.Cos( degrees * Mathf.Deg2Rad );
 				}
+			}
+
+			public void _Reset( float degrees )
+			{
+				_degrees = degrees;
+				cos = (float)System.Math.Cos( degrees * Mathf.Deg2Rad );
 			}
 
 			public static implicit operator float ( CachedDegreesToCos this_ )
@@ -1209,7 +1223,7 @@ namespace SA
 
 		public struct CachedDegreesToCosSin
 		{
-			float _degrees;
+			public float _degrees;
 			public float cos;
 			public float sin;
 
@@ -1232,9 +1246,56 @@ namespace SA
 			public void Reset( float degrees )
 			{
 				if( _degrees != degrees ) {
+					_degrees = degrees;
 					cos = (float)System.Math.Cos( degrees * Mathf.Deg2Rad );
 					sin = (float)System.Math.Sin( degrees * Mathf.Deg2Rad );
 				}
+			}
+
+			public void _Reset( float degrees )
+			{
+				_degrees = degrees;
+				cos = (float)System.Math.Cos( degrees * Mathf.Deg2Rad );
+				sin = (float)System.Math.Sin( degrees * Mathf.Deg2Rad );
+			}
+		}
+
+		public struct CachedScaledValue
+		{
+			public float _a;
+			public float _b;
+			public float value;
+
+			public static readonly CachedScaledValue zero = new CachedScaledValue( 0.0f, 0.0f, 0.0f );
+
+			public CachedScaledValue( float a, float b )
+			{
+				_a = a;
+				_b = b;
+				value = a * b;
+			}
+
+			public CachedScaledValue( float a, float b, float value_ )
+			{
+				_a = a;
+				_b = b;
+				value = value_;
+			}
+
+			public void Reset( float a, float b )
+			{
+				if( _a != a || _b != b ) {
+					_a = a;
+					_b = b;
+					value = a * b;
+				}
+			}
+
+			public void _Reset( float a, float b )
+			{
+				_a = a;
+				_b = b;
+				value = a * b;
 			}
 		}
 

@@ -188,6 +188,7 @@ namespace SA
 				fbik._settings.animatorEnabled = (FullBodyIK.AutomaticBool)EditorGUILayout.EnumPopup( "Animator Enabled", fbik._settings.animatorEnabled );
 				fbik._settings.resetTransforms = (FullBodyIK.AutomaticBool)EditorGUILayout.EnumPopup( "Reset Transforms", fbik._settings.resetTransforms );
 				fbik._settings.automaticConfigureTwistEnabled = EditorGUILayout.Toggle( "Automatic Configure Twist Enabled", fbik._settings.automaticConfigureTwistEnabled );
+				fbik._settings.twistEnabled = EditorGUILayout.Toggle( "Twist Enabled", fbik._settings.twistEnabled );
 				fbik._settings.modelTemplate = (FullBodyIK.ModelTemplate)EditorGUILayout.EnumPopup( "Model Template", fbik._settings.modelTemplate );
 
 				fbik._settings.limbIK.automaticKneeBaseAngle		= EditorGUILayout.FloatField( "Automatic Knee Base Angle", fbik._settings.limbIK.automaticKneeBaseAngle );

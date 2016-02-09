@@ -393,6 +393,8 @@ namespace SA
 			public AutomaticBool resetTransforms = AutomaticBool.Auto;
 
 			public bool automaticConfigureTwistEnabled = false;
+			public bool twistEnabled = false;
+
 			public bool createEffectorTransform = true;
 
 			public ModelTemplate modelTemplate = ModelTemplate.Standard;
@@ -404,13 +406,49 @@ namespace SA
 			public class LimbIK
 			{
 				public float automaticKneeBaseAngle = 0.0f;
+
+				public bool presolveKneeEnabled = true;
+				public bool presolveElbowEnabled = true;
 				public float presolveKneeRate = 1.0f;
 				public float presolveKneeLerpAngle = 10.0f;
 				public float presolveKneeLerpLengthRate = 0.1f;
 				public float presolveElbowRate = 1.0f;
 				public float presolveElbowLerpAngle = 10.0f;
 				public float presolveElbowLerpLengthRate = 0.1f;
-            }
+
+				public bool prefixLegEffectorEnabled = true;
+
+				public float prefixLegUpperLimitAngle = 60.0f;
+				public float prefixKneeUpperLimitAngle = 45.0f;
+
+				public float legEffectorMinLengthRate = 0.1f;
+				public float legEffectorMaxLengthRate = 0.9999f;
+				public float armEffectorMaxLengthRate = 0.9999f;
+
+				public float armBasisForcefixEffectorLengthRate = 0.99f;
+				public float armBasisForcefixEffectorLengthLerpRate = 0.03f;
+
+				// Arm back area.(Automatic only, Based on localXZ)
+				public float armEffectorBackBeginAngle = 5.0f;
+				public float armEffectorBackCoreBeginAngle = -10.0f;
+				public float armEffectorBackCoreEndAngle = -30.0f;
+				public float armEffectorBackEndAngle = -160.0f;
+
+				// Arm back area.(Automatic only, Based on localYZ)
+				public float armEffectorBackCoreUpperAngle = 8.0f;
+				public float armEffectorBackCoreLowerAngle = -15.0f;
+
+				// Arm elbow angles.(Automatic only)
+				public float automaticElbowBaseAngle = 30.0f;
+				public float automaticElbowLowerAngle = 90.0f;
+				public float automaticElbowUpperAngle = 90.0f;
+				public float automaticElbowBackUpperAngle = 180.0f;
+				public float automaticElbowBackLowerAngle = 330.0f;
+
+				// Arm elbow limit angles.(Automatic / Manual)
+				public float elbowFrontInnerLimitAngle = 5.0f;
+				public float elbowBackInnerLimitAngle = 0.0f;
+			}
 
 			public class HeadIK
 			{
@@ -436,6 +474,54 @@ namespace SA
 			public Matrix3x3 defaultRootBasis = Matrix3x3.identity;
 			public Matrix3x3 defaultRootBasisInv = Matrix3x3.identity;
 			public Quaternion defaultRootRotation = Quaternion.identity;
+
+			public class LimbIK
+			{
+				public void Update( Settings settings )
+				{
+					Assert( settings != null );
+
+					if( armEffectorBackBeginTheta._degrees != settings.limbIK.armEffectorBackBeginAngle ) {
+						armEffectorBackBeginTheta._Reset( settings.limbIK.armEffectorBackBeginAngle );
+                    }
+					if( armEffectorBackCoreBeginTheta._degrees != settings.limbIK.armEffectorBackCoreBeginAngle ) {
+						armEffectorBackCoreBeginTheta._Reset( settings.limbIK.armEffectorBackCoreBeginAngle );
+					}
+					if( armEffectorBackCoreEndTheta._degrees != settings.limbIK.armEffectorBackCoreEndAngle ) {
+						armEffectorBackCoreEndTheta._Reset( settings.limbIK.armEffectorBackCoreEndAngle );
+					}
+					if( armEffectorBackEndTheta._degrees != settings.limbIK.armEffectorBackEndAngle ) {
+						armEffectorBackEndTheta._Reset( settings.limbIK.armEffectorBackEndAngle );
+					}
+
+					if( armEffectorBackCoreUpperTheta._degrees != settings.limbIK.armEffectorBackCoreUpperAngle ) {
+						armEffectorBackCoreUpperTheta._Reset( settings.limbIK.armEffectorBackCoreUpperAngle );
+					}
+					if( armEffectorBackCoreLowerTheta._degrees != settings.limbIK.armEffectorBackCoreLowerAngle ) {
+						armEffectorBackCoreLowerTheta._Reset( settings.limbIK.armEffectorBackCoreLowerAngle );
+					}
+
+					if( elbowFrontInnerLimitTheta._degrees != settings.limbIK.elbowFrontInnerLimitAngle ) {
+						elbowFrontInnerLimitTheta._Reset( settings.limbIK.elbowFrontInnerLimitAngle );
+					}
+					if( elbowBackInnerLimitTheta._degrees != settings.limbIK.elbowBackInnerLimitAngle ) {
+						elbowBackInnerLimitTheta._Reset( settings.limbIK.elbowBackInnerLimitAngle );
+					}
+				}
+
+				public CachedDegreesToSin armEffectorBackBeginTheta = CachedDegreesToSin.zero;
+				public CachedDegreesToSin armEffectorBackCoreBeginTheta = CachedDegreesToSin.zero;
+				public CachedDegreesToCos armEffectorBackCoreEndTheta = CachedDegreesToCos.zero;
+				public CachedDegreesToCos armEffectorBackEndTheta = CachedDegreesToCos.zero;
+
+				public CachedDegreesToSin armEffectorBackCoreUpperTheta = CachedDegreesToSin.zero;
+				public CachedDegreesToSin armEffectorBackCoreLowerTheta = CachedDegreesToSin.zero;
+
+				public CachedDegreesToSin elbowFrontInnerLimitTheta = CachedDegreesToSin.zero;
+				public CachedDegreesToSin elbowBackInnerLimitTheta = CachedDegreesToSin.zero;
+			}
+
+			public LimbIK limbIK = new LimbIK();
 		}
 
 		[System.Serializable]
@@ -1041,7 +1127,9 @@ namespace SA
 			}
 
 			_internalValues.continuousSolverEnabled = !_internalValues.animatorEnabled && !_internalValues.resetTransforms;
-		}
+
+			_internalValues.limbIK.Update( _settings );
+        }
 
 		void LateUpdate()
 		{
@@ -1110,10 +1198,7 @@ namespace SA
 				if( _limbIK != null ) {
 					for( int i = 0; i < _limbIK.Length; ++i ) {
 						if( _limbIK[i] != null ) {
-							if( _limbIK[i].Solve() ) {
-								isSolved |= true;
-								_limbIK[i].Twist();
-							}
+							isSolved |= _limbIK[i].Solve();
 						}
 					}
 				}

@@ -12,18 +12,20 @@ namespace SA
 	{
 		public class LimbIK
 		{
-			const float _EffectorMaxLengthRate = 0.9999f;
-
-			const float _LegEffectorMinLengthRate = 0.5f;
-
-			const float _ElbowBasisForcefixEffectorLengthRate = 0.99f;
-			const float _ElbowBasisForcefixEffectorLengthLerpRate = 0.03f;
+			struct TwistBone
+			{
+				public Bone bone;
+				public float rate;
+			}
 
 #if SAFULLBODYIK_DEBUG
 			DebugData _debugData;
 #endif
 
 			Settings _settings;
+			Settings.LimbIK _settingsLimbIK;
+			InternalValues _internalValues;
+			InternalValues.LimbIK _internalValuesLimbIK;
 
 			public LimbIKLocation _limbIKLocation;
 			LimbIKType _limbIKType;
@@ -35,8 +37,8 @@ namespace SA
 			Effector _bendingEffector;
 			Effector _endEffector;
 
-			Bone[] _armTwistBones;
-			Bone[] _handTwistBones;
+			TwistBone[] _armTwistBones;
+			TwistBone[] _handTwistBones;
 
 			float _beginToBendingLength;
 			float _beginToBendingLengthSq;
@@ -56,18 +58,24 @@ namespace SA
 			float _defaultCosTheta = 1.0f;
 
 			float _beginToEndMaxLength = 0.0f;
-			float _effectorMaxLength = 0.0f;
-			float _legEffectorMinLength = 0.0f; // for Test.
+			CachedScaledValue _effectorMaxLength = CachedScaledValue.zero;
+			CachedScaledValue _effectorMinLength = CachedScaledValue.zero;
 
-			InternalValues _internalValues;
-
-			float _leg_upperLimitLegAngle = 60.0f * Mathf.Deg2Rad;
-			float _leg_upperLimitKneeAngle = 45.0f * Mathf.Deg2Rad;
 			float _leg_upperLimitNearCircleZ = 0.0f;
 			float _leg_upperLimitNearCircleY = 0.0f;
 
-			float _arm_elbowBasisForcefixEffectorLengthBegin = 0.0f;
-			float _arm_elbowBasisForcefixEffectorLengthEnd = 0.0f;
+			CachedScaledValue _arm_elbowBasisForcefixEffectorLengthBegin = CachedScaledValue.zero;
+			CachedScaledValue _arm_elbowBasisForcefixEffectorLengthEnd = CachedScaledValue.zero;
+
+			// for Arm twist.
+			Matrix3x3 _arm_bendingToBeginBoneBasis = Matrix3x3.identity;
+			Quaternion _arm_bendingWorldToBeginBoneRotation = Quaternion.identity;
+			// for Hand twist.
+			Quaternion _arm_endWorldToBendingBoneRotation = Quaternion.identity;
+			// for Arm/Hand twist.(Temporary)
+			bool _arm_isSolvedLimbIK;
+			Matrix3x3 _arm_solvedBeginBoneBasis = Matrix3x3.identity;
+			Matrix3x3 _arm_solvedBendingBoneBasis = Matrix3x3.identity;
 
 			public LimbIK( FullBodyIK fullBodyIK, LimbIKLocation limbIKLocation )
 			{
@@ -81,8 +89,9 @@ namespace SA
 #endif
 
 				_settings = fullBodyIK._settings;
-
+				_settingsLimbIK = _settings.limbIK;
 				_internalValues = fullBodyIK._internalValues;
+				_internalValuesLimbIK = _internalValues.limbIK;
 
 				_limbIKLocation = limbIKLocation;
 				_limbIKType = ToLimbIKType( limbIKLocation );
@@ -104,8 +113,8 @@ namespace SA
 					_endBone = armBones.wrist;
 					_bendingEffector = armEffectors.elbow;
 					_endEffector = armEffectors.wrist;
-					_armTwistBones = armBones.armTwist;
-					_handTwistBones = armBones.handTwist;
+					_PrepareTwistBones( ref _armTwistBones, armBones.armTwist );
+					_PrepareTwistBones( ref _handTwistBones, armBones.handTwist );
 				}
 
 				_Prepare( fullBodyIK );
@@ -166,26 +175,67 @@ namespace SA
 				_beginToBendingBoneBasis = _beginBone._localAxisBasisInv * _bendingBone._localAxisBasis;
 
 				if( _limbIKType == LimbIKType.Leg ) {
-					if( fullBodyIK._leftLegBones != null &&
-						fullBodyIK._rightLegBones != null &&
-						fullBodyIK._leftLegBones.leg != null &&
-						fullBodyIK._rightLegBones.leg != null ) {
-						var n = fullBodyIK._rightLegBones.leg._defaultPosition - fullBodyIK._leftLegBones.leg._defaultPosition;
-						_legEffectorMinLength = n.magnitude * _LegEffectorMinLengthRate;
-                    }
+					_leg_upperLimitNearCircleZ = 0.0f;
+					_leg_upperLimitNearCircleY = _beginToEndMaxLength;
+				}
 
-					_leg_upperLimitNearCircleZ = _beginToBendingLength * Mathf.Cos( _leg_upperLimitLegAngle )
-												+ _bendingToEndLength * Mathf.Cos( _leg_upperLimitKneeAngle );
-					_leg_upperLimitNearCircleY = _beginToBendingLength * Mathf.Sin( _leg_upperLimitLegAngle )
-												+ _bendingToEndLength * Mathf.Sin( _leg_upperLimitKneeAngle );
+				if( _armTwistBones != null ) {
+					if( _beginBone != null && _bendingBone != null ) {
+						_arm_bendingToBeginBoneBasis = _bendingBone._boneToBaseBasis * _beginBone._baseToBoneBasis;
+						_arm_bendingWorldToBeginBoneRotation = Normalize( _bendingBone._worldToBaseBasis * _beginBone._baseToBoneBasis );
+                    }
+				}
+
+				if( _handTwistBones != null ) {
+					if( _endBone != null && _bendingBone != null ) {
+						_arm_endWorldToBendingBoneRotation = Normalize( _endBone._worldToBaseBasis * _bendingBone._baseToBoneBasis );
+                    }
+				}
+			}
+
+			float _cache_legUpperLimitAngle = 0.0f;
+			float _cache_kneeUpperLimitAngle = 0.0f;
+
+			void _UpdateArgs()
+			{
+				if( _limbIKType == LimbIKType.Leg ) {
+					float effectorMinLengthRate = _settingsLimbIK.legEffectorMinLengthRate;
+                    if( _effectorMinLength._b != effectorMinLengthRate ) {
+						_effectorMinLength._Reset( _beginToEndMaxLength, effectorMinLengthRate );
+					}
+
+					if( _cache_kneeUpperLimitAngle != _settingsLimbIK.prefixKneeUpperLimitAngle ||
+						_cache_legUpperLimitAngle != _settingsLimbIK.prefixLegUpperLimitAngle ) {
+						_cache_kneeUpperLimitAngle = _settingsLimbIK.prefixKneeUpperLimitAngle;
+						_cache_legUpperLimitAngle = _settingsLimbIK.prefixLegUpperLimitAngle;
+
+						// Memo: Their CachedDegreesToCosSin aren't required caching. (Use instantly.)
+						CachedDegreesToCosSin kneeUpperLimitTheta = new CachedDegreesToCosSin( _settingsLimbIK.prefixKneeUpperLimitAngle );
+						CachedDegreesToCosSin legUpperLimitTheta = new CachedDegreesToCosSin( _settingsLimbIK.prefixLegUpperLimitAngle );
+
+						_leg_upperLimitNearCircleZ = _beginToBendingLength * legUpperLimitTheta.cos
+													+ _bendingToEndLength * kneeUpperLimitTheta.cos;
+
+						_leg_upperLimitNearCircleY = _beginToBendingLength * legUpperLimitTheta.sin
+													+ _bendingToEndLength * kneeUpperLimitTheta.sin;
+					}
 				}
 
 				if( _limbIKType == LimbIKType.Arm ) {
-					_arm_elbowBasisForcefixEffectorLengthBegin = _beginToEndMaxLength * (_ElbowBasisForcefixEffectorLengthRate - _ElbowBasisForcefixEffectorLengthLerpRate);
-					_arm_elbowBasisForcefixEffectorLengthEnd = _beginToEndMaxLength * _ElbowBasisForcefixEffectorLengthRate;
+					float beginRate = _settingsLimbIK.armBasisForcefixEffectorLengthRate - _settingsLimbIK.armBasisForcefixEffectorLengthLerpRate;
+					float endRate = _settingsLimbIK.armBasisForcefixEffectorLengthRate;
+					if( _arm_elbowBasisForcefixEffectorLengthBegin._b != beginRate ) {
+						_arm_elbowBasisForcefixEffectorLengthBegin._Reset( _beginToEndMaxLength, beginRate );
+                    }
+					if( _arm_elbowBasisForcefixEffectorLengthEnd._b != endRate ) {
+						_arm_elbowBasisForcefixEffectorLengthEnd._Reset( _beginToEndMaxLength, endRate );
+					}
 				}
 
-				_effectorMaxLength = _beginToEndMaxLength * _EffectorMaxLengthRate;
+				float effectorMaxLengthRate = (_limbIKType == LimbIKType.Leg) ? _settingsLimbIK.legEffectorMaxLengthRate : _settingsLimbIK.armEffectorMaxLengthRate;
+				if( _effectorMaxLength._b != effectorMaxLengthRate ) {
+					_effectorMaxLength._Reset( _beginToEndMaxLength, effectorMaxLengthRate );
+				}
 			}
 
 			// for animatorEnabled
@@ -218,8 +268,29 @@ namespace SA
 				}
 			}
 
+			static void _PrepareTwistBones( ref TwistBone[] twistBones, Bone[] bones )
+			{
+				if( bones != null && bones.Length > 0 ) {
+					int length = bones.Length;
+					float t = 1.0f / (float)(length + 1);
+					float r = t;
+					twistBones = new TwistBone[length];
+					for( int i = 0; i < length; ++i, r += t ) {
+						twistBones[i].bone = bones[i];
+						twistBones[i].rate = r;
+					}
+				} else {
+					twistBones = null;
+                }
+			}
+
 			public void PresolveBeinding()
 			{
+				bool presolvedEnabled = (_limbIKType == LimbIKType.Leg) ? _settingsLimbIK.presolveKneeEnabled : _settingsLimbIK.presolveElbowEnabled;
+				if( !presolvedEnabled ) {
+					return;
+				}
+
 				_isPresolvedBending = false;
 
 				if( _beginBone == null ||
@@ -304,7 +375,7 @@ namespace SA
 				float z = localEffectorTrans.z;
 
 				float rZ = _leg_upperLimitNearCircleZ;
-                float rY = _leg_upperLimitNearCircleY + _legEffectorMinLength;
+                float rY = _leg_upperLimitNearCircleY + _effectorMinLength.value;
 
 				if( rZ > IKEpsilon && rY > IKEpsilon ) {
 					bool isLimited = false;
@@ -326,7 +397,7 @@ namespace SA
 							localEffectorTrans.y = -n * rY + _leg_upperLimitNearCircleY;
 						} else { // Failsafe.
 							localEffectorTrans.z = 0.0f;
-							localEffectorTrans.y = -_legEffectorMinLength;
+							localEffectorTrans.y = -_effectorMinLength.value;
 						}
 						return true;
 					}
@@ -489,11 +560,16 @@ namespace SA
 
 			CachedDegreesToCos _presolvedLerpTheta = CachedDegreesToCos.zero;
 			CachedDegreesToCos _automaticKneeBaseTheta = CachedDegreesToCos.zero;
+			CachedDegreesToCosSin _automaticArmElbowTheta = CachedDegreesToCosSin.zero;
 
 			public bool Solve()
 			{
+				_UpdateArgs();
+				_arm_isSolvedLimbIK = false;
+
 				bool r = _SolveInternal();
 				r |= _SolveEndRotation();
+				r |= _TwistInternal();
 
 				return r;
 			}
@@ -509,6 +585,7 @@ namespace SA
 				}
 
 				Matrix3x3 parentBaseBasis = _beginBone.parentBone.worldRotation * _beginBone.parentBone._worldToBaseRotation;
+				Matrix3x3 parentBaseBasisInv = parentBaseBasis.transpose;
 
 				Vector3 beginPos = _beginBone.worldPosition;
 				Vector3 bendingPos = _bendingEffector._hidden_worldPosition;
@@ -519,37 +596,26 @@ namespace SA
 				if( effectorLen <= IKEpsilon ) {
 					return _SolveEndRotation();
 				}
-				if( _effectorMaxLength <= IKEpsilon ) {
+				if( _effectorMaxLength.value <= IKEpsilon ) {
 					return _SolveEndRotation();
 				}
 
 				Vector3 effectorDir = effectorTrans * (1.0f / effectorLen);
 
-				if( effectorLen > _effectorMaxLength ) {
-					effectorTrans = effectorDir * _effectorMaxLength;
+				if( effectorLen > _effectorMaxLength.value ) {
+					effectorTrans = effectorDir * _effectorMaxLength.value;
 					effectorPos = beginPos + effectorTrans;
-					effectorLen = _effectorMaxLength;
+					effectorLen = _effectorMaxLength.value;
 				}
-
-				bool _isSolveLimbIK = true;
-				bool _isPresolveBending = true;
-				bool _isEffectorPrefixer = true;
-
-
-#if SAFULLBODYIK_DEBUG
-				_debugData.UpdateValue( "_isEffectorPrefixer", ref _isEffectorPrefixer );
-				_debugData.UpdateValue( "_isPresolveBending", ref _isPresolveBending );
-				_debugData.UpdateValue( "_isSolveLimbIK", ref _isSolveLimbIK );
-#endif
 
 				Vector3 localEffectorDir = new Vector3( 0.0f, 0.0f, 1.0f );
 				if( _limbIKType == LimbIKType.Arm ) {
-					localEffectorDir = parentBaseBasis.transpose.Multiply( ref effectorDir );
+					localEffectorDir = parentBaseBasisInv.Multiply( ref effectorDir );
 				}
 
 				// pending: Detail processing for Arm too.
-				if( _isEffectorPrefixer && _limbIKType == LimbIKType.Leg ) { // Override Effector Pos.
-					Vector3 localEffectorTrans = parentBaseBasis.transpose * effectorTrans;
+				if( _limbIKType == LimbIKType.Leg && _settingsLimbIK.prefixLegEffectorEnabled ) { // Override Effector Pos.
+					Vector3 localEffectorTrans = parentBaseBasisInv.Multiply( ref effectorTrans );
 
 					bool isProcessed = false;
 					bool isLimited = false;
@@ -561,7 +627,7 @@ namespace SA
                         }
 
 						if( !isProcessed &&
-							localEffectorTrans.y >= -_legEffectorMinLength &&
+							localEffectorTrans.y >= -_effectorMinLength.value &&
 							localEffectorTrans.z <= _leg_upperLimitNearCircleZ ) { // Upper(Near)
 							isProcessed = true;
 							isLimited = _PrefixLegEffectorPos_UpperNear( ref localEffectorTrans );
@@ -584,9 +650,9 @@ namespace SA
 
 					} else { // Back
 						// Pending: Detail Processing.
-						if( localEffectorTrans.y >= -_legEffectorMinLength ) {
+						if( localEffectorTrans.y >= -_effectorMinLength.value ) {
 							isLimited = true;
-							localEffectorTrans.y = -_legEffectorMinLength;
+							localEffectorTrans.y = -_effectorMinLength.value;
                         } else {
 							isLimited = _PrefixLegEffectorPos_Circular_Far( ref localEffectorTrans, _beginToBendingLength + _bendingToEndLength );
 						}
@@ -613,20 +679,14 @@ namespace SA
 
 				// Automatical bendingPos
 				if( !_bendingEffector.positionEnabled ) {
-					float presolvedBendingRate = (_limbIKType == LimbIKType.Leg)
-						? _settings.limbIK.presolveKneeRate
-						: _settings.limbIK.presolveElbowRate;
-
-					float presolvedLerpAngle = (_limbIKType == LimbIKType.Leg)
-						? _settings.limbIK.presolveKneeLerpAngle
-						: _settings.limbIK.presolveElbowLerpAngle;
-
-					float presolvedLerpLengthRate = (_limbIKType == LimbIKType.Leg)
-						? _settings.limbIK.presolveKneeLerpLengthRate
-						: _settings.limbIK.presolveElbowLerpLengthRate;
+					bool presolvedEnabled = (_limbIKType == LimbIKType.Leg) ? _settingsLimbIK.presolveKneeEnabled : _settingsLimbIK.presolveElbowEnabled;
+					float presolvedBendingRate = (_limbIKType == LimbIKType.Leg) ? _settingsLimbIK.presolveKneeRate : _settingsLimbIK.presolveElbowRate;
+					float presolvedLerpAngle = (_limbIKType == LimbIKType.Leg) ? _settingsLimbIK.presolveKneeLerpAngle : _settingsLimbIK.presolveElbowLerpAngle;
+					float presolvedLerpLengthRate = (_limbIKType == LimbIKType.Leg) ? _settingsLimbIK.presolveKneeLerpLengthRate : _settingsLimbIK.presolveElbowLerpLengthRate;
 
 					Vector3 presolvedBendingPos = Vector3.zero;
-					if( _isPresolveBending && _isPresolvedBending ) {
+
+					if( presolvedEnabled && _isPresolvedBending ) {
 						if( _presolvedEffectorLength > IKEpsilon ) {
 							float lerpLength = _presolvedEffectorLength * presolvedLerpLengthRate;
 							if( lerpLength > IKEpsilon ) {
@@ -690,44 +750,23 @@ namespace SA
 						if( _limbIKType == LimbIKType.Arm ) {
 							Vector3 dirX = (_limbIKSide == Side.Left) ? -baseBasis.column0 : baseBasis.column0;
 							{
-								// Based localXZ
-								float _armEffectorBackBeginAngle = 5.0f;
-								float _armEffectorBackCoreBeginAngle = -10.0f;
-								float _armEffectorBackCoreEndAngle = -30.0f;
-								float _armEffectorBackEndAngle = -160.0f;
+								float elbowBaseAngle = _settingsLimbIK.automaticElbowBaseAngle;
+								float elbowLowerAngle = _settingsLimbIK.automaticElbowLowerAngle;
+								float elbowUpperAngle = _settingsLimbIK.automaticElbowUpperAngle;
+								float elbowBackUpperAngle = _settingsLimbIK.automaticElbowBackUpperAngle;
+								float elbowBackLowerAngle = _settingsLimbIK.automaticElbowBackLowerAngle;
 
-								// Based localYZ
-								float _armEffectorBackCoreUpperAngle = 8.0f;
-								float _armEffectorBackCoreLowerAngle = -15.0f;
+								// Based on localXZ
+								float armEffectorBackBeginSinTheta = _internalValuesLimbIK.armEffectorBackBeginTheta.sin;
+								float armEffectorBackCoreBeginSinTheta = _internalValuesLimbIK.armEffectorBackCoreBeginTheta.sin;
+								float armEffectorBackCoreEndCosTheta = _internalValuesLimbIK.armEffectorBackCoreEndTheta.cos;
+								float armEffectorBackEndCosTheta = _internalValuesLimbIK.armEffectorBackEndTheta.cos;
 
-								float _armElbowBaseAngle = 30.0f;
-								float _armElbowLowerAngle = 90.0f;
-								float _armElbowUpperAngle = 90.0f;
-								float _armElbowBackUpperAngle = 180.0f;
-								float _armElbowBackLowerAngle = 330.0f;
+								// Based on localYZ
+								float armEffectorBackCoreUpperSinTheta = _internalValuesLimbIK.armEffectorBackCoreUpperTheta.sin;
+								float armEffectorBackCoreLowerSinTheta = _internalValuesLimbIK.armEffectorBackCoreLowerTheta.sin;
 
-#if SAFULLBODYIK_DEBUG
-								_debugData.UpdateValue( "_armEffectorBackBeginAngle", ref _armEffectorBackBeginAngle );
-								_debugData.UpdateValue( "_armEffectorBackCoreBeginAngle", ref _armEffectorBackCoreBeginAngle );
-								_debugData.UpdateValue( "_armEffectorBackCoreEndAngle", ref _armEffectorBackCoreEndAngle );
-								_debugData.UpdateValue( "_armEffectorBackEndAngle", ref _armEffectorBackEndAngle );
-								_debugData.UpdateValue( "_armEffectorBackCoreUpperAngle", ref _armEffectorBackCoreUpperAngle );
-								_debugData.UpdateValue( "_armEffectorBackCoreLowerAngle", ref _armEffectorBackCoreLowerAngle );
-								_debugData.UpdateValue( "_armElbowBaseAngle", ref _armElbowBaseAngle );
-								_debugData.UpdateValue( "_armElbowLowerAngle", ref _armElbowLowerAngle );
-								_debugData.UpdateValue( "_armElbowUpperAngle", ref _armElbowUpperAngle );
-								_debugData.UpdateValue( "_armElbowBackUpperAngle", ref _armElbowBackUpperAngle );
-								_debugData.UpdateValue( "_armElbowBackLowerAngle", ref _armElbowBackLowerAngle );
-#endif
-								float _elbowAngle = _armElbowBaseAngle;
-
-								CachedDegreesToSin _armEffectorBackBeginTheta = new CachedDegreesToSin( _armEffectorBackBeginAngle );
-								CachedDegreesToSin _armEffectorBackCoreBeginTheta = new CachedDegreesToSin( _armEffectorBackCoreBeginAngle );
-								CachedDegreesToCos _armEffectorBackCoreEndTheta = new CachedDegreesToCos( _armEffectorBackCoreEndAngle );
-								CachedDegreesToCos _armEffectorBackEndTheta = new CachedDegreesToCos( _armEffectorBackEndAngle );
-
-								CachedDegreesToSin _armEffectorBackCoreUpperTheta = new CachedDegreesToSin( _armEffectorBackCoreUpperAngle );
-								CachedDegreesToSin _armEffectorBackCoreLowerTheta = new CachedDegreesToSin( _armEffectorBackCoreLowerAngle );
+								float elbowAngle = elbowBaseAngle;
 
 								Vector3 localXZ; // X is reversed in RightSide.
 								Vector3 localYZ;
@@ -737,68 +776,68 @@ namespace SA
 								_ComputeLocalDirYZ( ref localDir, out localYZ ); // Lefthand Based.
 
 								if( localDir.y < 0.0f ) {
-									_elbowAngle = Mathf.Lerp( _elbowAngle, _armElbowLowerAngle, -localDir.y );
+									elbowAngle = Mathf.Lerp( elbowAngle, elbowLowerAngle, -localDir.y );
 								} else {
-									_elbowAngle = Mathf.Lerp( _elbowAngle, _armElbowUpperAngle, localDir.y );
+									elbowAngle = Mathf.Lerp( elbowAngle, elbowUpperAngle, localDir.y );
 								}
 
-								if( localXZ.z < _armEffectorBackBeginTheta.sin &&
-									localXZ.x > _armEffectorBackEndTheta.cos ) {
+								if( localXZ.z < armEffectorBackBeginSinTheta &&
+									localXZ.x > armEffectorBackEndCosTheta ) {
 
 									float targetAngle;
-									if( localYZ.y >= _armEffectorBackCoreUpperTheta.sin ) {
-										targetAngle = _armElbowBackUpperAngle;
-									} else if( localYZ.y <= _armEffectorBackCoreLowerTheta.sin ) {
-										targetAngle = _armElbowBackLowerAngle;
+									if( localYZ.y >= armEffectorBackCoreUpperSinTheta ) {
+										targetAngle = elbowBackUpperAngle;
+									} else if( localYZ.y <= armEffectorBackCoreLowerSinTheta ) {
+										targetAngle = elbowBackLowerAngle;
 									} else {
-										float t = _armEffectorBackCoreUpperTheta.sin - _armEffectorBackCoreLowerTheta.sin;
+										float t = armEffectorBackCoreUpperSinTheta - armEffectorBackCoreLowerSinTheta;
 										if( t > IKEpsilon ) {
-											float r = (localYZ.y - _armEffectorBackCoreLowerTheta.sin) / t;
-											targetAngle = Mathf.Lerp( _armElbowBackLowerAngle, _armElbowBackUpperAngle, r );
+											float r = (localYZ.y - armEffectorBackCoreLowerSinTheta) / t;
+											targetAngle = Mathf.Lerp( elbowBackLowerAngle, elbowBackUpperAngle, r );
 										} else {
-											targetAngle = _armElbowBackLowerAngle;
+											targetAngle = elbowBackLowerAngle;
 										}
 									}
 
-									if( localXZ.x < _armEffectorBackCoreEndTheta.cos ) {
-										float t = _armEffectorBackCoreEndTheta.cos - _armEffectorBackEndTheta.cos;
+									if( localXZ.x < armEffectorBackCoreEndCosTheta ) {
+										float t = armEffectorBackCoreEndCosTheta - armEffectorBackEndCosTheta;
 										if( t > IKEpsilon ) {
-											float r = (localXZ.x - _armEffectorBackEndTheta.cos) / t;
+											float r = (localXZ.x - armEffectorBackEndCosTheta) / t;
 
-											if( localYZ.y <= _armEffectorBackCoreLowerTheta.sin ) {
-												_elbowAngle = Mathf.Lerp( _elbowAngle, targetAngle, r );
-											} else if( localYZ.y >= _armEffectorBackCoreUpperTheta.sin ) {
-												_elbowAngle = Mathf.Lerp( _elbowAngle, targetAngle - 360.0f, r );
+											if( localYZ.y <= armEffectorBackCoreLowerSinTheta ) {
+												elbowAngle = Mathf.Lerp( elbowAngle, targetAngle, r );
+											} else if( localYZ.y >= armEffectorBackCoreUpperSinTheta ) {
+												elbowAngle = Mathf.Lerp( elbowAngle, targetAngle - 360.0f, r );
 											} else {
-												float angle0 = Mathf.Lerp( _elbowAngle, targetAngle, r ); // Lower
-												float angle1 = Mathf.Lerp( _elbowAngle, targetAngle - 360.0f, r ); // Upper
-												float t2 = _armEffectorBackCoreUpperTheta.sin - _armEffectorBackCoreLowerTheta.sin;
+												float angle0 = Mathf.Lerp( elbowAngle, targetAngle, r ); // Lower
+												float angle1 = Mathf.Lerp( elbowAngle, targetAngle - 360.0f, r ); // Upper
+												float t2 = armEffectorBackCoreUpperSinTheta - armEffectorBackCoreLowerSinTheta;
 												if( t2 > IKEpsilon ) {
-													float r2 = (localYZ.y - _armEffectorBackCoreLowerTheta.sin) / t2;
+													float r2 = (localYZ.y - armEffectorBackCoreLowerSinTheta) / t2;
 													if( angle0 - angle1 > 180.0f ) {
 														angle1 += 360.0f;
 													}
 
-													_elbowAngle = Mathf.Lerp( angle0, angle1, r2 );
+													elbowAngle = Mathf.Lerp( angle0, angle1, r2 );
 												} else { // Failsafe.
-													_elbowAngle = angle0;
+													elbowAngle = angle0;
 												}
 											}
 										}
-									} else if( localXZ.z > _armEffectorBackCoreBeginTheta.sin ) {
-										float t = (_armEffectorBackBeginTheta.sin - _armEffectorBackCoreBeginTheta.sin);
+									} else if( localXZ.z > armEffectorBackCoreBeginSinTheta ) {
+										float t = (armEffectorBackBeginSinTheta - armEffectorBackCoreBeginSinTheta);
 										if( t > IKEpsilon ) {
-											float r = (_armEffectorBackBeginTheta.sin - localXZ.z) / t;
+											float r = (armEffectorBackBeginSinTheta - localXZ.z) / t;
 											if( localDir.y >= 0.0f ) {
-												_elbowAngle = Mathf.Lerp( _elbowAngle, targetAngle, r );
+												elbowAngle = Mathf.Lerp( elbowAngle, targetAngle, r );
 											} else {
-												_elbowAngle = Mathf.Lerp( _elbowAngle, targetAngle - 360.0f, r );
+												elbowAngle = Mathf.Lerp( elbowAngle, targetAngle - 360.0f, r );
 											}
 										} else { // Failsafe.
-											_elbowAngle = targetAngle;
+											elbowAngle = targetAngle;
 										}
 									} else {
-										_elbowAngle = targetAngle;
+										elbowAngle = targetAngle;
 									}
 								}
 
@@ -810,26 +849,31 @@ namespace SA
 									dirZ = parentBaseBasis.column2;
 								}
 
-								CachedDegreesToCosSin _armElbowTheta = new CachedDegreesToCosSin( _elbowAngle );
+								if( _automaticArmElbowTheta._degrees != elbowAngle ) {
+									_automaticArmElbowTheta._Reset( elbowAngle );
+                                }
 
 								bendingPos = beginPos + dirX * moveC
-									+ -dirY * moveS * _armElbowTheta.cos
-									+ -dirZ * moveS * _armElbowTheta.sin;
+									+ -dirY * moveS * _automaticArmElbowTheta.cos
+									+ -dirZ * moveS * _automaticArmElbowTheta.sin;
 							}
 						} else { // Leg
-							if( IsFuzzy( _settings.limbIK.automaticKneeBaseAngle, 0.0f ) ) {
+							float automaticKneeBaseAngle = _settings.limbIK.automaticKneeBaseAngle;
+                            if( automaticKneeBaseAngle >= -IKEpsilon && automaticKneeBaseAngle <= IKEpsilon ) { // Fuzzy 0
 								bendingPos = beginPos + -baseBasis.column1 * moveC + baseBasis.column2 * moveS;
 							} else {
-								_automaticKneeBaseTheta.Reset( _settings.limbIK.automaticKneeBaseAngle );
+								if( _automaticKneeBaseTheta._degrees != automaticKneeBaseAngle ) {
+									_automaticKneeBaseTheta._Reset( automaticKneeBaseAngle );
+								}
 
 								float kneeSin = _automaticKneeBaseTheta.cos;
                                 float kneeCos = Sqrt( 1.0f - kneeSin * kneeSin );
 								if( _limbIKSide == Side.Right ) {
-									if( _settings.limbIK.automaticKneeBaseAngle >= 0.0f ) {
+									if( automaticKneeBaseAngle >= 0.0f ) {
 										kneeCos = -kneeCos;
 									}
 								} else {
-									if( _settings.limbIK.automaticKneeBaseAngle < 0.0f ) {
+									if( automaticKneeBaseAngle < 0.0f ) {
 										kneeCos = -kneeCos;
 									}
 								}
@@ -850,7 +894,7 @@ namespace SA
 				Vector3 solvedBeginToBendingDir = Vector3.zero;
 				Vector3 solvedBendingToEndDir = Vector3.zero;
 
-				if( _isSolveLimbIK ) {
+				{
 					Vector3 beginToBendingTrans = bendingPos - beginPos;
 					Vector3 intersectBendingTrans = beginToBendingTrans - effectorDir * Vector3.Dot( effectorDir, beginToBendingTrans );
 					float intersectBendingLen = intersectBendingTrans.magnitude;
@@ -876,19 +920,13 @@ namespace SA
 					}
 				}
 
-				float _armElbowFrontInnerLimitAngle = 5.0f;
-				float _armElbowBackInnerLimitAngle = 0.0f;
-#if SAFULLBODYIK_DEBUG
-				_debugData.UpdateValue( "_armElbowFrontInnerLimitAngle", ref _armElbowFrontInnerLimitAngle );
-				_debugData.UpdateValue( "_armElbowBackInnerLimitAngle", ref _armElbowBackInnerLimitAngle );
-#endif
-				CachedDegreesToSin _armElbowFrontInnerLimitTheta = new CachedDegreesToSin( _armElbowFrontInnerLimitAngle );
-				CachedDegreesToSin _armElbowBackInnerLimitTheta = new CachedDegreesToSin( _armElbowBackInnerLimitAngle );
-#if true
 				if( isSolved && _limbIKType == LimbIKType.Arm ) {
-					Vector3 localBendingDir = parentBaseBasis.transpose.Multiply( solvedBeginToBendingDir );
+					float elbowFrontInnerLimitSinTheta = _internalValuesLimbIK.elbowFrontInnerLimitTheta.sin;
+					float elbowBackInnerLimitSinTheta = _internalValuesLimbIK.elbowBackInnerLimitTheta.sin;
+
+					Vector3 localBendingDir = parentBaseBasisInv.Multiply( ref solvedBeginToBendingDir );
 					bool isBack = localBendingDir.z < 0.0f;
-					float limitTheta = isBack ? _armElbowBackInnerLimitTheta.sin : _armElbowFrontInnerLimitTheta.sin;
+					float limitTheta = isBack ? elbowBackInnerLimitSinTheta : elbowFrontInnerLimitSinTheta;
 
                     float localX = (_limbIKSide == Side.Left) ? localBendingDir.x : (-localBendingDir.x);
 					if( localX > limitTheta ) {
@@ -906,7 +944,7 @@ namespace SA
 						}
 					}
                 }
-#endif
+
 				if( !isSolved ) { // Failsafe.
 					Vector3 bendingDir = bendingPos - beginPos;
 					if( _SafeNormalize( ref bendingDir ) ) {
@@ -941,7 +979,7 @@ namespace SA
 					}
 
 					{
-						if( effectorLen > _arm_elbowBasisForcefixEffectorLengthEnd ) {
+						if( effectorLen > _arm_elbowBasisForcefixEffectorLengthEnd.value ) {
 							basisY = beginBasis.Multiply_Column1( ref _beginToBendingBoneBasis );
 						} else {
 							basisY = Vector3.Cross( -solvedBeginToBendingDir, solvedBendingToEndDir ); // Memo: Require to MaxEffectorLengthRate is less than 1.0
@@ -949,10 +987,10 @@ namespace SA
 								basisY = -basisY;
 							}
 
-							if( effectorLen > _arm_elbowBasisForcefixEffectorLengthBegin ) {
-								float t = _arm_elbowBasisForcefixEffectorLengthEnd - _arm_elbowBasisForcefixEffectorLengthBegin;
+							if( effectorLen > _arm_elbowBasisForcefixEffectorLengthBegin.value ) {
+								float t = _arm_elbowBasisForcefixEffectorLengthEnd.value - _arm_elbowBasisForcefixEffectorLengthBegin.value;
 								if( t > IKEpsilon ) {
-									float r = (effectorLen - _arm_elbowBasisForcefixEffectorLengthBegin) / t;
+									float r = (effectorLen - _arm_elbowBasisForcefixEffectorLengthBegin.value) / t;
 									basisY = Vector3.Lerp( basisY, beginBasis.Multiply_Column1( ref _beginToBendingBoneBasis ), r );
                                 }
                             }
@@ -979,6 +1017,12 @@ namespace SA
 					}
 				}
 
+				if( _limbIKType == LimbIKType.Arm ) {
+					_arm_isSolvedLimbIK = true;
+					_arm_solvedBeginBoneBasis = beginBasis;
+					_arm_solvedBendingBoneBasis = bendingBasis;
+				}
+
 				_beginBone.worldRotation = (beginBasis * _beginBone._boneToWorldBasis).GetRotation();
 				_bendingBone.worldRotation = (bendingBasis * _bendingBone._boneToWorldBasis).GetRotation();
 				return true;
@@ -995,49 +1039,83 @@ namespace SA
 				return true;
 			}
 
-			public void Twist()
+			bool _TwistInternal()
 			{
-				// Test Code!!!
-				// todo: Refactoring.
-				if( _handTwistBones != null ) {
-					int boneLength = 0;
-					for( int i = 0; i < _handTwistBones.Length; ++i ) {
-						if( _handTwistBones[i] != null && _handTwistBones[i].transformIsAlive ) {
-							++boneLength;
-						}
+				if( _limbIKType != LimbIKType.Arm || !_settings.twistEnabled ) {
+					return false;
+				}
+
+				bool isSolved = false;
+
+				if( _armTwistBones != null && _armTwistBones.Length > 0 ) {
+					int boneLength = _armTwistBones.Length;
+
+					Matrix3x3 beginBoneBasis;
+					Matrix3x3 bendingBoneBasis; // Attension: bendingBoneBasis is based on beginBoneBasis
+					if( _arm_isSolvedLimbIK ) {
+						beginBoneBasis = _arm_solvedBeginBoneBasis;
+						bendingBoneBasis = _arm_solvedBendingBoneBasis * _arm_bendingToBeginBoneBasis;
+					} else {
+						beginBoneBasis = new Matrix3x3( _beginBone.worldRotation * _beginBone._worldToBoneRotation );
+						bendingBoneBasis = new Matrix3x3( _bendingBone.worldRotation * _arm_bendingWorldToBeginBoneRotation );
 					}
 
-					if( boneLength > 0 ) {
-						var bendingBoneBasis = new Matrix3x3( _bendingBone.worldRotation * _bendingBone._worldToBoneRotation );
-						var endBoneBasis = new Matrix3x3( _endBone.worldRotation * _endBone._worldToBaseRotation );
-						endBoneBasis *= _bendingBone._baseToBoneBasis; // Attention!!!
+					Vector3 dirX = beginBoneBasis.column0;
+					Vector3 dirY = bendingBoneBasis.column1;
+					Vector3 dirZ = bendingBoneBasis.column2;
 
-						Vector3 dirZ = endBoneBasis.column2;
-						Vector3 dirX = bendingBoneBasis.column0;
-						Vector3 dirY = Vector3.Cross( dirZ, dirX );
-						dirZ = Vector3.Cross( dirX, dirY );
-						if( _SafeNormalize( ref dirY, ref dirZ ) ) { // Lock dirX(bendingBoneBasis.column0)
-							var baseBasis = bendingBoneBasis * _bendingBone._boneToBaseBasis;
-							var baseBasisTo = Matrix3x3.FromColumn( dirX, dirY, dirZ ) * _bendingBone._boneToBaseBasis;
+					Matrix3x3 bendingBasisTo;
 
-							int boneIndex = 0;
-							for( int i = 0; i < _handTwistBones.Length; ++i ) {
-								if( _handTwistBones[i] != null && _handTwistBones[i].transformIsAlive ) {
-									Matrix3x3 tempBasis;
+					if( _ComputeBasisLockX( out bendingBasisTo, ref dirX, ref dirY, ref dirZ ) ) {
+						var baseBasis = beginBoneBasis * _beginBone._boneToBaseBasis;
+						var baseBasisTo = bendingBasisTo * _beginBone._boneToBaseBasis;
 
-									float rate = (float)(boneIndex + 1) / (float)(boneLength + 1);
-
-									_Lerp( out tempBasis, ref baseBasis, ref baseBasisTo, rate );
-
-									_handTwistBones[i].worldRotation = (tempBasis * _handTwistBones[i]._baseToWorldBasis).GetRotation();
-
-
-									++boneIndex;
-								}
+						for( int i = 0; i < boneLength; ++i ) {
+							if( _armTwistBones[i].bone != null && _armTwistBones[i].bone.transformIsAlive ) {
+								Matrix3x3 tempBasis;
+								float rate = _armTwistBones[i].rate;
+								_Lerp( out tempBasis, ref baseBasis, ref baseBasisTo, rate );
+								_armTwistBones[i].bone.worldRotation = (tempBasis * _handTwistBones[i].bone._baseToWorldBasis).GetRotation();
+								isSolved = true;
 							}
 						}
 					}
 				}
+
+				if( _handTwistBones != null && _handTwistBones.Length > 0 ) {
+					int boneLength = _handTwistBones.Length;
+
+					Matrix3x3 bendingBoneBasis;
+					if( _arm_isSolvedLimbIK ) {
+						bendingBoneBasis = _arm_solvedBendingBoneBasis;
+                    } else {
+						bendingBoneBasis = new Matrix3x3( _bendingBone.worldRotation * _bendingBone._worldToBoneRotation );
+					}
+
+					// Attension: endBoneBasis is based on bendingBoneBasis
+					Matrix3x3 endBoneBasis = new Matrix3x3( _endBone.worldRotation * _arm_endWorldToBendingBoneRotation );
+					
+					Vector3 dirZ = endBoneBasis.column2;
+					Vector3 dirX = bendingBoneBasis.column0;
+					Vector3 dirY = Vector3.Cross( dirZ, dirX );
+					dirZ = Vector3.Cross( dirX, dirY );
+					if( _SafeNormalize( ref dirY, ref dirZ ) ) { // Lock dirX(bendingBoneBasis.column0)
+						var baseBasis = bendingBoneBasis * _bendingBone._boneToBaseBasis;
+						var baseBasisTo = Matrix3x3.FromColumn( dirX, dirY, dirZ ) * _bendingBone._boneToBaseBasis;
+
+						for( int i = 0; i < boneLength; ++i ) {
+							if( _handTwistBones[i].bone != null && _handTwistBones[i].bone.transformIsAlive ) {
+								Matrix3x3 tempBasis;
+								float rate = _handTwistBones[i].rate;
+								_Lerp( out tempBasis, ref baseBasis, ref baseBasisTo, rate );
+								_handTwistBones[i].bone.worldRotation = (tempBasis * _handTwistBones[i].bone._baseToWorldBasis).GetRotation();
+								isSolved = true;
+                            }
+						}
+					}
+				}
+
+				return isSolved;
 			}
 		}
 	}
