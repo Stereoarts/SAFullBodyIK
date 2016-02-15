@@ -562,7 +562,7 @@ namespace SA
 		public static float SAFBIKSqrt( float a )
 		{
 			CheckNaN( a );
-			if( a <= IKEpsilon ) { // Counts as 0
+			if( a <= Mathf.Epsilon ) { // Counts as 0
 				return 0.0f;
 			}
 
@@ -572,9 +572,9 @@ namespace SA
 		public static float SAFBIKSqrtClamp01( float a )
 		{
 			CheckNaN( a );
-			if( a <= IKEpsilon ) { // Counts as 0
+			if( a <= Mathf.Epsilon ) { // Counts as 0
 				return 0.0f;
-			} else if( a >= 1.0f - IKEpsilon ) {
+			} else if( a >= 1.0f - Mathf.Epsilon ) {
 				return 1.0f;
 			}
 
@@ -609,10 +609,10 @@ namespace SA
 		public static float SAFBIKAcos( float cos )
 		{
 			CheckNaN( cos );
-			if( cos >= 1.0f - IKEpsilon ) {
+			if( cos >= 1.0f - Mathf.Epsilon ) {
 				return 0.0f;
 			}
-			if( cos <= -1.0f + IKEpsilon ) {
+			if( cos <= -1.0f + Mathf.Epsilon ) {
 				return 180.0f * Mathf.Deg2Rad;
 			}
 
@@ -622,10 +622,10 @@ namespace SA
 		public static float SAFBIKAsin( float sin )
 		{
 			CheckNaN( sin );
-			if( sin >= 1.0f - IKEpsilon ) {
+			if( sin >= 1.0f - Mathf.Epsilon ) {
 				return 90.0f * Mathf.Deg2Rad;
 			}
-			if( sin <= -1.0f + IKEpsilon ) {
+			if( sin <= -1.0f + Mathf.Epsilon ) {
 				return -90.0f * Mathf.Deg2Rad;
 			}
 
@@ -646,7 +646,7 @@ namespace SA
 		{
 			CheckNaN( v );
 			float sq = v.x * v.x + v.y * v.y + v.z * v.z;
-			if( sq > IKEpsilon ) {
+			if( sq > Mathf.Epsilon ) {
 				return (float)System.Math.Sqrt( (double)sq );
 			}
 
@@ -657,7 +657,7 @@ namespace SA
 		{
 			CheckNaN( v );
 			lengthSq = v.x * v.x + v.y * v.y + v.z * v.z;
-			if( lengthSq > IKEpsilon ) {
+			if( lengthSq > Mathf.Epsilon ) {
 				return (float)System.Math.Sqrt( (double)lengthSq );
 			}
 
@@ -672,7 +672,7 @@ namespace SA
 			float ry = lhs.y - rhs.y;
 			float rz = lhs.z - rhs.z;
 			float sq = rx * rx + ry * ry + rz * rz;
-			if( sq > IKEpsilon ) {
+			if( sq > Mathf.Epsilon ) {
 				return (float)System.Math.Sqrt( (double)sq );
 			}
 
@@ -697,7 +697,7 @@ namespace SA
 			float ry = lhs.y - rhs.y;
 			float rz = lhs.z - rhs.z;
 			lengthSq = rx * rx + ry * ry + rz * rz;
-			if( lengthSq > IKEpsilon ) {
+			if( lengthSq > Mathf.Epsilon ) {
 				return (float)System.Math.Sqrt( (double)lengthSq );
 			}
 
@@ -708,7 +708,7 @@ namespace SA
 		{
 			CheckNaN( v0 );
 			float sq0 = v0.x * v0.x + v0.y * v0.y + v0.z * v0.z;
-			if( sq0 > IKEpsilon ) {
+			if( sq0 > Mathf.Epsilon ) {
 				float len0 = (float)System.Math.Sqrt( (double)sq0 );
 				if( len0 > IKEpsilon ) {
 					len0 = 1.0f / len0;
@@ -727,7 +727,7 @@ namespace SA
 		{
 			CheckNaN( v0 );
 			float sq0 = v0.x * v0.x + v0.z * v0.z;
-			if( sq0 > IKEpsilon ) {
+			if( sq0 > Mathf.Epsilon ) {
 				float len0 = (float)System.Math.Sqrt( (double)sq0 );
 				if( len0 > IKEpsilon ) {
 					len0 = 1.0f / len0;
@@ -745,7 +745,7 @@ namespace SA
 		{
 			CheckNaN( v0 );
 			float sq0 = v0.y * v0.y + v0.z * v0.z;
-			if( sq0 > IKEpsilon ) {
+			if( sq0 > Mathf.Epsilon ) {
 				float len0 = (float)System.Math.Sqrt( (double)sq0 );
 				if( len0 > IKEpsilon ) {
 					len0 = 1.0f / len0;
@@ -854,7 +854,7 @@ namespace SA
 			} else {
 				if( m.column0.x > m.column1.y && m.column0.x > m.column2.z ) {
 					float s = m.column0.x - m.column1.y - m.column2.z + 1.0f;
-					if( s <= IKEpsilon ) {
+					if( s <= Mathf.Epsilon ) {
 						q = Quaternion.identity;
 						return;
 					}
@@ -868,7 +868,7 @@ namespace SA
 					CheckNaN( q );
 				} else if( m.column1.y > m.column2.z ) {
 					float s = m.column1.y - m.column0.x - m.column2.z + 1.0f;
-					if( s <= IKEpsilon ) {
+					if( s <= Mathf.Epsilon ) {
 						q = Quaternion.identity;
 						return;
 					}
@@ -882,7 +882,7 @@ namespace SA
 					CheckNaN( q );
 				} else {
 					float s = m.column2.z - m.column0.x - m.column1.y + 1.0f;
-					if( s <= IKEpsilon ) {
+					if( s <= Mathf.Epsilon ) {
 						q = Quaternion.identity;
 						return;
 					}
@@ -925,7 +925,7 @@ namespace SA
 			m = new Matrix3x3();
 
 			float sin = 1.0f - cos * cos;
-			sin = (sin <= IKEpsilon) ? 0.0f : ((sin >= 1.0f - IKEpsilon) ? 1.0f : (float)System.Math.Sqrt( (float)sin ));
+			sin = (sin <= Mathf.Epsilon) ? 0.0f : ((sin >= 1.0f - Mathf.Epsilon) ? 1.0f : (float)System.Math.Sqrt( (float)sin ));
 
 			float axis_x_sin = axis.x * sin;
 			float axis_y_sin = axis.y * sin;
@@ -1359,7 +1359,7 @@ namespace SA
 		{
 			float lenSq = q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w;
 			if( lenSq > IKEpsilon ) {
-				if( lenSq >= 1.0f - IKEpsilon && lenSq <= 1.0 + IKEpsilon ) {
+				if( lenSq >= 1.0f - Mathf.Epsilon && lenSq <= 1.0 + Mathf.Epsilon ) {
 					return q;
 				} else {
 					float s = 1.0f / Mathf.Sqrt( lenSq );
@@ -1374,7 +1374,7 @@ namespace SA
 		{
 			float lenSq = q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w;
 			if( lenSq > IKEpsilon ) {
-				if( lenSq >= 1.0f - IKEpsilon && lenSq <= 1.0 + IKEpsilon ) {
+				if( lenSq >= 1.0f - Mathf.Epsilon && lenSq <= 1.0 + Mathf.Epsilon ) {
 					return true;
 				} else {
 					float s = 1.0f / Mathf.Sqrt( lenSq );
@@ -1421,7 +1421,7 @@ namespace SA
 					if( (_flags & 0x01) == 0 ) {
 						_flags |= 0x01;
 						if( (_flags & 0x02) != 0 ) {
-							_length = (_lengthSq > IKEpsilon) ? Mathf.Sqrt( _lengthSq ) : 0.0f;
+							_length = (_lengthSq > Mathf.Epsilon) ? Mathf.Sqrt( _lengthSq ) : 0.0f;
 						}
 					}
 
