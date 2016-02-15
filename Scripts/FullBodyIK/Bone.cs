@@ -10,12 +10,10 @@
 #endif
 
 using UnityEngine;
-using Util = SA.FullBodyIKUtil;
 
 namespace SA
 {
-
-	public partial class FullBodyIK : MonoBehaviour
+	public partial class FullBodyIK
 	{
 		public enum _LocalAxisFrom
 		{
@@ -91,7 +89,7 @@ namespace SA
 
 			// Internal Flags. These values are modified in Prepare().
 			[SerializeField]
-			bool _isWritebackWorldPosition = false; // for Pelvis / Torso only.
+			bool _isWritebackWorldPosition = false; // for Hips / Spine only.
 
 			public bool isWritebackWorldPosition { get { return _isWritebackWorldPosition; } }
 
@@ -119,7 +117,7 @@ namespace SA
 			public bool transformIsAlive {
 				get {
 					if( _transformIsAlive == -1 ) {
-						_transformIsAlive = Util.CheckAlive( ref this.transform ) ? 1 : 0;
+						_transformIsAlive = CheckAlive( ref this.transform ) ? 1 : 0;
 					}
 
 					return _transformIsAlive != 0;
@@ -163,8 +161,8 @@ namespace SA
 			void _PresetLocalAxis()
 			{
 				switch( _boneType ) {
-				case BoneType.Pelvis:		_PresetLocalAxis( _LocalAxisFrom.Child, _DirectionAs.YPlus ); return;
-				case BoneType.Torso:		_PresetLocalAxis( _LocalAxisFrom.Child, _DirectionAs.YPlus ); return;
+				case BoneType.Hips:		_PresetLocalAxis( _LocalAxisFrom.Child, _DirectionAs.YPlus ); return;
+				case BoneType.Spine:		_PresetLocalAxis( _LocalAxisFrom.Child, _DirectionAs.YPlus ); return;
 				case BoneType.Neck:			_PresetLocalAxis( _LocalAxisFrom.Child, _DirectionAs.YPlus ); return;
 				case BoneType.Head:			_PresetLocalAxis( _LocalAxisFrom.None, _DirectionAs.None ); return;
 				case BoneType.Eye:			_PresetLocalAxis( _LocalAxisFrom.None, _DirectionAs.None ); return;
@@ -175,9 +173,9 @@ namespace SA
 
 				case BoneType.Shoulder:		_PresetLocalAxis( _LocalAxisFrom.Child, (_boneSide == Side.Left) ? _DirectionAs.XMinus : _DirectionAs.XPlus ); return;
 				case BoneType.Arm:			_PresetLocalAxis( _LocalAxisFrom.Child, (_boneSide == Side.Left) ? _DirectionAs.XMinus : _DirectionAs.XPlus ); return;
-				case BoneType.ArmTwist:		_PresetLocalAxis( _LocalAxisFrom.Parent, (_boneSide == Side.Left) ? _DirectionAs.XMinus : _DirectionAs.XPlus ); return;
+				case BoneType.ArmRoll:		_PresetLocalAxis( _LocalAxisFrom.Parent, (_boneSide == Side.Left) ? _DirectionAs.XMinus : _DirectionAs.XPlus ); return;
 				case BoneType.Elbow:		_PresetLocalAxis( _LocalAxisFrom.Child, (_boneSide == Side.Left) ? _DirectionAs.XMinus : _DirectionAs.XPlus ); return;
-				case BoneType.HandTwist:	_PresetLocalAxis( _LocalAxisFrom.Parent, (_boneSide == Side.Left) ? _DirectionAs.XMinus : _DirectionAs.XPlus ); return;
+				case BoneType.ElbowRoll:	_PresetLocalAxis( _LocalAxisFrom.Parent, (_boneSide == Side.Left) ? _DirectionAs.XMinus : _DirectionAs.XPlus ); return;
 				case BoneType.Wrist:		_PresetLocalAxis( _LocalAxisFrom.Parent, (_boneSide == Side.Left) ? _DirectionAs.XMinus : _DirectionAs.XPlus ); return;
 				}
 
@@ -240,21 +238,21 @@ namespace SA
 				}
 				
 #if SAFULLBODYIK_DEBUG
-				if( _boneType != BoneType.Pelvis && _boneType != BoneType.Eye ) {
+				if( _boneType != BoneType.Hips && _boneType != BoneType.Eye ) {
 					if( this.transformIsAlive && _parentBone == null ) {
 						DebugLogError( "parentBone is not found. " + _boneLocation + " (" + _boneType + ") parentBoneLocationBased: " + ((_parentBoneLocationBased != null) ? _parentBoneLocationBased.name : "") );
 					}
 				}
 #endif
 				
-				if( _boneLocation == BoneLocation.Pelvis ) {
+				if( _boneLocation == BoneLocation.Hips ) {
 					if( this.transformIsAlive ) {
 						_isWritebackWorldPosition = true;
 					}
-				} else if( _boneLocation == BoneLocation.Torso ) {
+				} else if( _boneLocation == BoneLocation.Spine ) {
 					if( this.transformIsAlive ) {
 						if( _parentBone != null && _parentBone.transformIsAlive ) {
-							if( Util.IsParentOfRecusively( _parentBone.transform, this.transform ) ) {
+							if( IsParentOfRecusively( _parentBone.transform, this.transform ) ) {
 								_isWritebackWorldPosition = true;
 							}
 						}
@@ -262,7 +260,7 @@ namespace SA
 				}
 
 				if( _boneType == BoneType.Eye ) {
-					if( fullBodyIK._settings.modelTemplate == ModelTemplate.UnityChan ) {
+					if( fullBodyIK.settings.modelTemplate == ModelTemplate.UnityChan ) {
 						_isWritebackWorldPosition = true;
 					}
 				}
@@ -271,11 +269,11 @@ namespace SA
 				if( this.transformIsAlive ) {
 					_defaultPosition = this.transform.position;
 					_defaultRotation = this.transform.rotation;
-					_defaultBasis.SetRotation( _defaultRotation );
+					SAFBIKMatSetRot( out _defaultBasis, ref _defaultRotation );
 
-					_worldToBaseBasis = _defaultBasis.transpose * fullBodyIK._internalValues.defaultRootBasis;
+					SAFBIKMatMultInv0( out _worldToBaseBasis, ref _defaultBasis, ref fullBodyIK.internalValues.defaultRootBasis );
 					_baseToWorldBasis = _worldToBaseBasis.transpose;
-					_worldToBaseRotation = _worldToBaseBasis.GetRotation();
+					SAFBIKMatGetRot( out _worldToBaseRotation, ref _worldToBaseBasis );
                     _baseToWorldRotation = Inverse( _worldToBaseRotation );
 				} else {
 					_defaultPosition = Vector3.zero;
@@ -293,44 +291,44 @@ namespace SA
 					if( _localAxisFrom == _LocalAxisFrom.Parent ||
 						_parentBone._localAxisFrom == _LocalAxisFrom.Child ) {
 						Vector3 dir = _defaultPosition - _parentBone._defaultPosition;
-						if( _SafeNormalize( ref dir ) ) {
+						if( SAFBIKVecNormalize( ref dir ) ) {
 							if( _localAxisFrom == _LocalAxisFrom.Parent ) {
-								_ComputeBasisFrom( out _localAxisBasis, ref fullBodyIK._internalValues.defaultRootBasis, ref dir, _localDirectionAs );
+								SAFBIKComputeBasisFrom( out _localAxisBasis, ref fullBodyIK.internalValues.defaultRootBasis, ref dir, _localDirectionAs );
 							}
 
 							if( _parentBone._localAxisFrom == _LocalAxisFrom.Child ) {
 								if( _parentBone._boneType == BoneType.Shoulder ) {
-									if( _parentBone._parentBone != null ) { // Using torso / arm axis for shoulder. Preprocess for BodyIK.
+									if( _parentBone._parentBone != null ) { // Using spine / arm axis for shoulder. Preprocess for BodyIK.
 										Bone shoulderBone = _parentBone;
-										Bone torsoBone = _parentBone._parentBone;
+										Bone spineBone = _parentBone._parentBone;
 										Vector3 xDir = (_parentBone._localDirectionAs == _DirectionAs.XMinus) ? -dir : dir;
-										Vector3 yDir = shoulderBone._defaultPosition - torsoBone._defaultPosition;
+										Vector3 yDir = shoulderBone._defaultPosition - spineBone._defaultPosition;
 										Vector3 zDir = Vector3.Cross( xDir, yDir );
 										yDir = Vector3.Cross( zDir, xDir );
-										if( _SafeNormalize( ref yDir, ref zDir ) ) {
+										if( SAFBIKVecNormalize2( ref yDir, ref zDir ) ) {
 											_parentBone._localAxisBasis.SetColumn( ref xDir, ref yDir, ref zDir );
 										}
 									}
-								} else if( _parentBone._boneType == BoneType.Torso && _boneType != BoneType.Torso && _boneType != BoneType.Neck ) {
-									// Compute torso/neck only( Exclude shouder / arm ).
-								} else if( _parentBone._boneType == BoneType.Pelvis && _boneType != BoneType.Torso ) {
-									// Compute torso only( Exclude leg ).
+								} else if( _parentBone._boneType == BoneType.Spine && _boneType != BoneType.Spine && _boneType != BoneType.Neck ) {
+									// Compute spine/neck only( Exclude shouder / arm ).
+								} else if( _parentBone._boneType == BoneType.Hips && _boneType != BoneType.Spine ) {
+									// Compute spine only( Exclude leg ).
 								} else {
-									if( _parentBone._boneType == BoneType.Pelvis ) {
-										Vector3 baseX = fullBodyIK._internalValues.defaultRootBasis.column0;
-                                        _ComputeBasisFromXYLockY( out _parentBone._localAxisBasis, ref baseX, ref dir );
-									} else if( _parentBone._boneType == BoneType.Torso || _parentBone._boneType == BoneType.Neck ) {
-										// Using parent axis for torso or neck. Preprocess for BodyIK.
+									if( _parentBone._boneType == BoneType.Hips ) {
+										Vector3 baseX = fullBodyIK.internalValues.defaultRootBasis.column0;
+										SAFBIKComputeBasisFromXYLockY( out _parentBone._localAxisBasis, ref baseX, ref dir );
+									} else if( _parentBone._boneType == BoneType.Spine || _parentBone._boneType == BoneType.Neck ) {
+										// Using parent axis for spine or neck. Preprocess for BodyIK.
 										if( _parentBone._parentBone != null ) {
 											Vector3 dirX = _parentBone._parentBone._localAxisBasis.column0;
-											_ComputeBasisFromXYLockY( out _parentBone._localAxisBasis, ref dirX, ref dir );
+											SAFBIKComputeBasisFromXYLockY( out _parentBone._localAxisBasis, ref dirX, ref dir );
 										}
 									} else {
 										if( _localAxisFrom == _LocalAxisFrom.Parent && _localDirectionAs == _parentBone._localDirectionAs ) {
 											_parentBone._localAxisBasis = _localAxisBasis;
 										} else {
-											_ComputeBasisFrom( out _parentBone._localAxisBasis,
-												ref fullBodyIK._internalValues.defaultRootBasis, ref dir, _parentBone._localDirectionAs );
+											SAFBIKComputeBasisFrom( out _parentBone._localAxisBasis,
+												ref fullBodyIK.internalValues.defaultRootBasis, ref dir, _parentBone._localDirectionAs );
 										}
 									}
 								}
@@ -345,12 +343,11 @@ namespace SA
 			{
 				if( _localAxisFrom != _LocalAxisFrom.None ) {
 					_localAxisBasisInv = _localAxisBasis.transpose;
-					_localAxisRotation = _localAxisBasis.GetRotation();
+					SAFBIKMatGetRot( out _localAxisRotation, ref _localAxisBasis );
 					_localAxisRotationInv = Inverse( _localAxisRotation );
-
-					_worldToBoneBasis = _defaultBasis.transpose * _localAxisBasis;
+					SAFBIKMatMultInv0( out _worldToBoneBasis, ref _defaultBasis, ref _localAxisBasis );
 					_boneToWorldBasis = _worldToBoneBasis.transpose;
-					_worldToBoneRotation = _worldToBoneBasis.GetRotation();
+					SAFBIKMatGetRot( out _worldToBoneRotation, ref _worldToBoneBasis );
 					_boneToWorldRotation = Inverse( _worldToBoneRotation );
 				} else {
 					_localAxisBasis = Matrix3x3.identity;
@@ -364,7 +361,7 @@ namespace SA
 					_boneToWorldRotation = _defaultRotation;
 				}
 
-				_baseToBoneBasis = _worldToBaseBasis.transpose * _worldToBoneBasis;
+				SAFBIKMatMultInv0( out _baseToBoneBasis, ref _worldToBaseBasis, ref _worldToBoneBasis );
 				_boneToBaseBasis = _baseToBoneBasis.transpose;
 			}
 

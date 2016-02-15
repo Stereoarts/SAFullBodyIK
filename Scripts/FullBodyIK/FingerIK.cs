@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace SA
 {
-	public partial class FullBodyIK : MonoBehaviour
+	public partial class FullBodyIK
 	{
 		public class FingerIK
 		{
@@ -77,9 +77,6 @@ namespace SA
 
 			FingerIKType _fingerIKType;
 			InternalValues _internalValues;
-#if SAFULLBODYIK_DEBUG
-			//DebugData _debugData;
-#endif
 
 			Bone _parentBone; // wrist/leg
 			_FingerBranch[] _fingerBranches = new _FingerBranch[(int)FingerType.Max];
@@ -100,23 +97,20 @@ namespace SA
 			public FingerIK( FullBodyIK fullBodyIK, FingerIKType fingerIKType )
 			{
 				_fingerIKType = fingerIKType;
-				_internalValues = fullBodyIK._internalValues;
-#if SAFULLBODYIK_DEBUG
-				//_debugData = fullBodyIK._debugData;
-#endif
+				_internalValues = fullBodyIK.internalValues;
 
 				FingersBones fingerBones = null;
                 FingersEffectors fingerEffectors = null;
 				switch( fingerIKType ) {
 				case FingerIKType.LeftWrist:
-					_parentBone		= fullBodyIK._leftArmBones.wrist;
-					fingerBones		= fullBodyIK._leftHandFingersBones;
-					fingerEffectors	= fullBodyIK._leftHandFingersEffectors;
+					_parentBone		= fullBodyIK.leftArmBones.wrist;
+					fingerBones		= fullBodyIK.leftHandFingersBones;
+					fingerEffectors	= fullBodyIK.leftHandFingersEffectors;
                     break;
 				case FingerIKType.RightWrist:
-					_parentBone		= fullBodyIK._rightArmBones.wrist;
-					fingerBones		= fullBodyIK._rightHandFingersBones;
-					fingerEffectors	= fullBodyIK._rightHandFingersEffectors;
+					_parentBone		= fullBodyIK.rightArmBones.wrist;
+					fingerBones		= fullBodyIK.rightHandFingersBones;
+					fingerEffectors	= fullBodyIK.rightHandFingersEffectors;
 					break;
 				}
 
@@ -207,13 +201,14 @@ namespace SA
 
 				Vector3 dirX = effector.defaultPosition - fingerBranch.fingerLinks[0].bone._defaultPosition;
 				dirX = isRight ? dirX : -dirX;
-				if( _SafeNormalize( ref dirX ) && _ComputeBasisFromXZLockX( out fingerBranch.boneToSolvedBasis, dirX, _internalValues.defaultRootBasis.column2 ) ) {
+				if( SAFBIKVecNormalize( ref dirX ) && SAFBIKComputeBasisFromXZLockX( out fingerBranch.boneToSolvedBasis, dirX, _internalValues.defaultRootBasis.column2 ) ) {
 					fingerBranch.solvedToBoneBasis = fingerBranch.boneToSolvedBasis.transpose;
 				}
 
 				if( fingerBranch.fingerLinks[0].bone != null ) {
-					fingerBranch.link0ToEffectorLengthSq = (effector.defaultPosition - fingerBranch.fingerLinks[0].bone._defaultPosition).sqrMagnitude;
-					fingerBranch.link0ToEffectorLength = Sqrt( fingerBranch.link0ToEffectorLengthSq );
+					fingerBranch.link0ToEffectorLength = SAFBIKVecLengthAndLengthSq2(
+						out fingerBranch.link0ToEffectorLengthSq,
+						ref effector._defaultPosition, ref fingerBranch.fingerLinks[0].bone._defaultPosition );
 				}
 
 				_fingerBranches[fingerType] = fingerBranch;
@@ -232,8 +227,7 @@ namespace SA
 				ref Vector3 thumbSolveY,
 				ref Vector3 thumbSolveZ )
 			{
-				if( _SafeNormalize( ref thumbSolveY ) &&
-					_SafeNormalize( ref thumbSolveZ ) ) {
+				if( SAFBIKVecNormalize2( ref thumbSolveY, ref thumbSolveZ ) ) {
 					if( Mathf.Abs( thumbSolveY.z ) > Mathf.Abs( thumbSolveZ.z ) ) {
 						Vector3 t = thumbSolveY;
 						thumbSolveY = thumbSolveZ;
@@ -247,8 +241,8 @@ namespace SA
 						thumbSolveZ = -thumbSolveZ;
 					}
 
-					thumbSolveY = middleBoneToSolvedBasis * thumbSolveY;
-					thumbSolveZ = middleBoneToSolvedBasis * thumbSolveZ;
+					SAFBIKMatMultVec( out thumbSolveY, ref middleBoneToSolvedBasis, ref thumbSolveY );
+					SAFBIKMatMultVec( out thumbSolveZ, ref middleBoneToSolvedBasis, ref thumbSolveZ );
 					return true;
 				}
 
@@ -280,9 +274,9 @@ namespace SA
 						Matrix3x3 middleBoneToSolvedBasis = Matrix3x3.identity;
 						Matrix3x3 middleSolvedToBoneBasis = Matrix3x3.identity;
 						Vector3 middleDirX = middleFingerLink0.bone._defaultPosition - _parentBone._defaultPosition;
-						if( _SafeNormalize( ref middleDirX ) ) {
+						if( SAFBIKVecNormalize( ref middleDirX ) ) {
 							middleDirX = isRight ? middleDirX : -middleDirX;
-							if( _ComputeBasisFromXZLockX( out middleBoneToSolvedBasis, middleDirX, _internalValues.defaultRootBasis.column2 ) ) {
+							if( SAFBIKComputeBasisFromXZLockX( out middleBoneToSolvedBasis, middleDirX, _internalValues.defaultRootBasis.column2 ) ) {
 								middleSolvedToBoneBasis = middleBoneToSolvedBasis.transpose;
 							}
 						}
@@ -301,8 +295,8 @@ namespace SA
 							Vector3 thumb1to2 = thumbPosition2 - thumbPosition1;
 
 							// World to Local Basis.(Reference Middle Finger.)
-							thumb0to1 = middleSolvedToBoneBasis * thumb0to1;
-							thumb1to2 = middleSolvedToBoneBasis * thumb1to2;
+							SAFBIKMatMultVec( out thumb0to1, ref middleSolvedToBoneBasis, ref thumb0to1 );
+							SAFBIKMatMultVec( out thumb1to2, ref middleSolvedToBoneBasis, ref thumb1to2 );
 
 							Vector3 tempY = Vector3.Cross( thumb0to1, thumb1to2 );
 
@@ -325,8 +319,8 @@ namespace SA
 							Vector3 thumb1to2 = thumbPosition2 - thumbPosition1;
 
 							// World to Local Basis.(Reference Middle Finger.)
-							thumb0to1 = middleSolvedToBoneBasis * thumb0to1;
-							thumb1to2 = middleSolvedToBoneBasis * thumb1to2;
+							SAFBIKMatMultVec( out thumb0to1, ref middleSolvedToBoneBasis, ref thumb0to1 );
+							SAFBIKMatMultVec( out thumb1to2, ref middleSolvedToBoneBasis, ref thumb1to2 );
 
 							Vector3 tempY = Vector3.Cross( thumb0to1, thumb1to2 );
 
@@ -340,9 +334,9 @@ namespace SA
 
 						if( !isSolved ) {
 							_thumbBranch.thumbSolveZ = new Vector3( 0.0f, 1.0f, 2.0f );
-							_SafeNormalize( ref _thumbBranch.thumbSolveZ );
+							SAFBIKVecNormalize( ref _thumbBranch.thumbSolveZ );
 							_thumbBranch.thumbSolveY = new Vector3( 0.0f, 2.0f, -1.0f );
-							_SafeNormalize( ref _thumbBranch.thumbSolveY );
+							SAFBIKVecNormalize( ref _thumbBranch.thumbSolveY );
 						}
 					}
 				}
@@ -359,15 +353,16 @@ namespace SA
 					}
 
 					if( fingerType != (int)FingerType.Thumb ) {
-						fingerLink.childToLengthSq = (destPosition - sourcePosition).sqrMagnitude;
-						fingerLink.childToLength = Sqrt( fingerLink.childToLengthSq );
+						fingerLink.childToLength = SAFBIKVecLengthAndLengthSq2(
+							out fingerLink.childToLengthSq,
+							ref destPosition, ref sourcePosition );
 					}
 
 					{
 						Vector3 dirX = destPosition - sourcePosition;
-						if( _SafeNormalize( ref dirX ) ) {
+						if( SAFBIKVecNormalize( ref dirX ) ) {
 							dirX = isRight ? dirX : -dirX;
-							if( _ComputeBasisFromXZLockX( out fingerLink.boneToSolvedBasis, dirX, _internalValues.defaultRootBasis.column2 ) ) {
+							if( SAFBIKComputeBasisFromXZLockX( out fingerLink.boneToSolvedBasis, dirX, _internalValues.defaultRootBasis.column2 ) ) {
 								fingerLink.solvedToBoneBasis = fingerLink.boneToSolvedBasis.transpose;
 							}
 						}
@@ -377,9 +372,9 @@ namespace SA
 						_ThumbLink thumbLink = _thumbBranch.thumbLinks[n];
 
 						Vector3 dirX = fingerBranch.effector._defaultPosition - sourcePosition;
-						if( _SafeNormalize( ref dirX ) ) {
+						if( SAFBIKVecNormalize( ref dirX ) ) {
 							dirX = isRight ? dirX : -dirX;
-							if( _ComputeBasisFromXYLockX( out thumbLink.thumb_boneToSolvedBasis, ref dirX, ref _thumbBranch.thumbSolveY ) ) {
+							if( SAFBIKComputeBasisFromXYLockX( out thumbLink.thumb_boneToSolvedBasis, ref dirX, ref _thumbBranch.thumbSolveY ) ) {
 								thumbLink.thumb_solvedToBoneBasis = thumbLink.thumb_boneToSolvedBasis.transpose;
 							}
 						}
@@ -408,7 +403,7 @@ namespace SA
 						float linkLength2 = fingerBranch.fingerLinks[2].childToLength;
 
 						float lengthH0 = Mathf.Abs( linkLength0 - linkLength2 );
-						float lengthD0 = Sqrt( Mathf.Max( linkLength1 * linkLength1 - lengthH0 * lengthH0, 0.0f ) );
+						float lengthD0 = SAFBIKSqrt( linkLength1 * linkLength1 - lengthH0 * lengthH0 );
 
 						float beginLink_endCosTheta = 0.0f; // 90'
 
@@ -421,7 +416,7 @@ namespace SA
 								lengthH0 = min_sinTheta * linkLength1;
 
 								float beginLink_endSinTheta = Mathf.Clamp01( (linkLength2 + lengthH0) * (1.0f / linkLength0) );
-								beginLink_endCosTheta = Sqrt( Mathf.Clamp01( 1.0f - beginLink_endSinTheta * beginLink_endSinTheta ) );
+								beginLink_endCosTheta = SAFBIKSqrtClamp01( 1.0f - beginLink_endSinTheta * beginLink_endSinTheta );
 							}
 						}
 
@@ -454,27 +449,27 @@ namespace SA
 					_FingerLink indexBeginLink = indexFingerBranch.fingerLinks[0];
 					// Direction thumb0 to index0.
 					Vector3 thumbToIndex = indexBeginLink.bone._defaultPosition - fingerLink0.bone._defaultPosition;
-					Vector3 localThumbToIndex = fingerBranch.solvedToBoneBasis * thumbToIndex;
-					if( _SafeNormalize( ref localThumbToIndex ) ) {
+					Vector3 localThumbToIndex;
+					SAFBIKMatMultVec( out localThumbToIndex, ref fingerBranch.solvedToBoneBasis, ref thumbToIndex );
+					if( SAFBIKVecNormalize( ref localThumbToIndex ) ) {
 						_thumbBranch.thumb0_isLimited = true;
 						_thumbBranch.thumb0_innerLimit = Mathf.Max( -localThumbToIndex.z, 0.0f ); // innerLimit = under index 0
-						_thumbBranch.thumb0_outerLimit = Mathf.Sin( Mathf.Max( -(_SafeAsin( _thumbBranch.thumb0_innerLimit ) - 40.0f * Mathf.Deg2Rad), 0.0f ) );
+						_thumbBranch.thumb0_outerLimit = (float)System.Math.Sin( Mathf.Max( -(SAFBIKAsin( _thumbBranch.thumb0_innerLimit ) - 40.0f * Mathf.Deg2Rad), 0.0f ) );
 						_thumbBranch.thumb0_upperLimit = Mathf.Max( localThumbToIndex.y, 0.0f ); // upperLimit = height index 0
-						_thumbBranch.thumb0_lowerLimit = Mathf.Sin( Mathf.Max( -(_SafeAsin( _thumbBranch.thumb0_upperLimit ) - 45.0f * Mathf.Deg2Rad), 0.0f ) );
+						_thumbBranch.thumb0_lowerLimit = (float)System.Math.Sin( Mathf.Max( -(SAFBIKAsin( _thumbBranch.thumb0_upperLimit ) - 45.0f * Mathf.Deg2Rad), 0.0f ) );
 					}
 				}
 
-				_thumbBranch.linkLength0to1Sq = (fingerLink1.bone._defaultPosition - fingerLink0.bone._defaultPosition).sqrMagnitude;
-				_thumbBranch.linkLength0to1 = Sqrt( _thumbBranch.linkLength0to1Sq );
-
-				_thumbBranch.linkLength1to2Sq = (fingerLink2.bone._defaultPosition - fingerLink1.bone._defaultPosition).sqrMagnitude;
-				_thumbBranch.linkLength1to2 = Sqrt( _thumbBranch.linkLength1to2Sq );
-				_thumbBranch.linkLength2to3Sq = (fingerBranch.effector._defaultPosition - fingerLink2.bone._defaultPosition).sqrMagnitude;
-				_thumbBranch.linkLength2to3 = Sqrt( _thumbBranch.linkLength2to3Sq );
+				_thumbBranch.linkLength0to1 = SAFBIKVecLengthAndLengthSq2( out _thumbBranch.linkLength0to1Sq,
+					ref fingerLink1.bone._defaultPosition, ref fingerLink0.bone._defaultPosition );
+				_thumbBranch.linkLength1to2 = SAFBIKVecLengthAndLengthSq2( out _thumbBranch.linkLength1to2Sq,
+					ref fingerLink2.bone._defaultPosition, ref fingerLink1.bone._defaultPosition );
+				_thumbBranch.linkLength2to3 = SAFBIKVecLengthAndLengthSq2( out _thumbBranch.linkLength2to3Sq,
+					ref fingerBranch.effector._defaultPosition, ref fingerLink2.bone._defaultPosition );
 
 				// Memo: Straight length.
-				_thumbBranch.linkLength1to3Sq = (fingerBranch.effector._defaultPosition - fingerLink1.bone._defaultPosition).sqrMagnitude;
-				_thumbBranch.linkLength1to3 = Sqrt( _thumbBranch.linkLength1to3Sq );
+				_thumbBranch.linkLength1to3 = SAFBIKVecLengthAndLengthSq2( out _thumbBranch.linkLength1to3Sq,
+					ref fingerBranch.effector._defaultPosition, ref fingerLink1.bone._defaultPosition );
 
 				_thumbBranch.thumb1_baseThetaAtoB = _ComputeTriangleTheta(
 					_thumbBranch.linkLength1to2,
@@ -484,7 +479,7 @@ namespace SA
 					_thumbBranch.linkLength1to3Sq,
 					_thumbBranch.linkLength2to3Sq );
 
-				_thumbBranch.thumb1_Acos_baseThetaAtoB = _SafeAcos( _thumbBranch.thumb1_baseThetaAtoB );
+				_thumbBranch.thumb1_Acos_baseThetaAtoB = SAFBIKAcos( _thumbBranch.thumb1_baseThetaAtoB );
 			}
 
 			//------------------------------------------------------------------------------------------------------------------------------------------------
@@ -500,19 +495,19 @@ namespace SA
 			{
 				Vector3 linkToEnd = endPosition - beginPosition;
 				Vector3 linkToNext = nextPosition - beginPosition;
-				if( _SafeNormalize( ref linkToEnd ) && _SafeNormalize( ref linkToNext ) ) {
+				if( SAFBIKVecNormalize2( ref linkToEnd, ref linkToNext ) ) {
 					Matrix3x3 linkToEndBasis;
 					Vector3 dirX = isRight ? linkToEnd : -linkToEnd;
-					_ComputeBasisFromXZLockX( out linkToEndBasis, dirX, rootBaseBasis.column2 );
+					SAFBIKComputeBasisFromXZLockX( out linkToEndBasis, dirX, rootBaseBasis.column2 );
 					dirX = isRight ? linkToNext : -linkToNext;
 					Vector3 dirY = linkToEndBasis.column2;
 					Matrix3x3 linkToNextBasis;
-					_ComputeBasisFromXZLockZ( out linkToNextBasis, ref dirX, ref dirY );
+					SAFBIKComputeBasisFromXZLockZ( out linkToNextBasis, ref dirX, ref dirY );
 
 					float dotX = Vector3.Dot( linkToEndBasis.column0, linkToNextBasis.column0 );
 					float dotY = Vector3.Dot( linkToEndBasis.column1, linkToNextBasis.column0 );
 
-					float r = _SafeAcos( dotX );
+					float r = SAFBIKAcos( dotX );
 					if( dotY < 0.0f ) {
 						r = -r;
 					}
@@ -532,9 +527,10 @@ namespace SA
 				ref Vector3 effectorDirection )
 			{
 				Vector3 dirX = isRight ? effectorDirection : -effectorDirection;
-				Vector3 dirZ = rootBasis.Multiply( linkBoneToSolvedBasis.column2 );
+				Vector3 dirZ;
+				SAFBIKMatMultVec( out dirZ, ref rootBasis, ref linkBoneToSolvedBasis.column2 );
 				Matrix3x3 linkSolvedBasis;
-				if( !_ComputeBasisFromXZLockX( out linkSolvedBasis, ref dirX, ref dirZ ) ) {
+				if( !SAFBIKComputeBasisFromXZLockX( out linkSolvedBasis, ref dirX, ref dirZ ) ) {
 					return false;
 				}
 
@@ -612,10 +608,10 @@ namespace SA
 				centerToBendingDirection *= 1.0f / centerToBendingDirectionLengthTemp;
 
 				float solveCosTheta = Mathf.Lerp( fingerIKParams.beginLink_endCosTheta, 1.0f, Mathf.Clamp01( (beginToEndLength - fingerIKParams.lengthD0) * fingerIKParams.lengthABCDInv ) );
-				float solveSinTheta = Sqrt( Mathf.Clamp01( 1.0f - solveCosTheta * solveCosTheta ) );
+				float solveSinTheta = SAFBIKSqrtClamp01( 1.0f - solveCosTheta * solveCosTheta );
 
 				Vector3 solvedDirection = beginToEndDirection * solveCosTheta + centerToBendingDirection * solveSinTheta;
-				if( !_SafeNormalize( ref solvedDirection ) ) {
+				if( !SAFBIKVecNormalize( ref solvedDirection ) ) {
 					return Vector3.zero;
 				}
 
@@ -637,7 +633,7 @@ namespace SA
 				}
 
 				float beginToEndLengthSq = (endPosition - beginPosition).sqrMagnitude;
-				float beginToEndLength = Sqrt( beginToEndLengthSq );
+				float beginToEndLength = SAFBIKSqrt( beginToEndLengthSq );
 				if( beginToEndLength <= IKEpsilon ) {
 					return Vector3.zero;
 				}
@@ -670,7 +666,7 @@ namespace SA
 					}
 				}
 
-				float sinTheta = Sqrt( Mathf.Clamp( 1.0f - beginToInterTheta * beginToInterTheta, 0.0f, 1.0f ) );
+				float sinTheta = SAFBIKSqrtClamp01( 1.0f - beginToInterTheta * beginToInterTheta );
 
 				Vector3 beginToInterDirection = beginToEndDirection * beginToInterTheta * beginToInterBaseLength
 												+ centerToBendingDirection * sinTheta * beginToInterBaseLength;
@@ -695,7 +691,8 @@ namespace SA
 
 				Matrix3x4 parentTransform = Matrix3x4.identity;
 				parentTransform.origin = _parentBone.worldPosition;
-				parentTransform.basis = _parentBone.worldRotation * Inverse( _parentBone._defaultRotation );
+				Quaternion parentBoneWorldRotation = _parentBone.worldRotation;
+				SAFBIKMatSetRotMultInv1( out parentTransform.basis, ref parentBoneWorldRotation, ref _parentBone._defaultRotation );
 
 				for( int i = 0; i != (int)FingerType.Max; ++i ) {
 					_FingerBranch fingerBranch = _fingerBranches[i];
@@ -804,9 +801,11 @@ namespace SA
 				bool isUpper = false;
 
 				{
-					Matrix3x3 beginToEndBasis = parentTransform.basis * fingerBranch.boneToSolvedBasis;
-					Matrix3x3 beginToEndBasisInv = beginToEndBasis.transpose;
-					Vector3 localEffectorDirection = beginToEndBasisInv * effectorDirection;
+					Matrix3x3 beginToEndBasis;
+					SAFBIKMatMult( out beginToEndBasis, ref parentTransform.basis, ref fingerBranch.boneToSolvedBasis );
+					Vector3 localEffectorDirection;
+					SAFBIKMatMultVecInv( out localEffectorDirection, ref beginToEndBasis, ref effectorDirection );
+
 					isUpper = (localEffectorDirection.y >= 0.0f);
 
 					if( _LimitFingerNotThumb(
@@ -815,7 +814,7 @@ namespace SA
 						ref _notThumbPitchUThetaLimit,
 						ref _notThumbPitchLThetaLimit,
 						ref _notThumbYawThetaLimit ) ) {
-						effectorDirection = beginToEndBasis * localEffectorDirection;
+						SAFBIKMatMultVec( out effectorDirection, ref beginToEndBasis, ref localEffectorDirection );
 						effectorTranslate = effectorDirection * effectorLength;
 						effectorPosition = beginLinkPosition + effectorTranslate;
 					}
@@ -848,15 +847,14 @@ namespace SA
 					{
 						Vector3 beginLinkToBendingLink0Direction = bendingLink0Position - beginLinkPosition;
 						Vector3 beginLinkToEndDirection = endPosition - beginLinkPosition;
-						if( _SafeNormalize( ref beginLinkToBendingLink0Direction ) &&
-							_SafeNormalize( ref beginLinkToEndDirection ) ) {
+						if( SAFBIKVecNormalize2( ref beginLinkToBendingLink0Direction, ref beginLinkToEndDirection ) ) {
 
 							Matrix3x3 effBasis;
-							if( _ComputeBasisFromXZLockX( out effBasis, isRight ? effectorDirection : -effectorDirection, solveDirZ ) ) {
+							if( SAFBIKComputeBasisFromXZLockX( out effBasis, isRight ? effectorDirection : -effectorDirection, solveDirZ ) ) {
 								Matrix3x3 bendBasis;
 								Matrix3x3 endBasis;
-								if( _ComputeBasisFromXZLockZ( out bendBasis, isRight ? beginLinkToBendingLink0Direction : -beginLinkToBendingLink0Direction, effBasis.column2 ) &&
-									_ComputeBasisFromXZLockZ( out endBasis, isRight ? beginLinkToEndDirection : -beginLinkToEndDirection, effBasis.column2 ) ) {
+								if( SAFBIKComputeBasisFromXZLockZ( out bendBasis, isRight ? beginLinkToBendingLink0Direction : -beginLinkToBendingLink0Direction, effBasis.column2 ) &&
+									SAFBIKComputeBasisFromXZLockZ( out endBasis, isRight ? beginLinkToEndDirection : -beginLinkToEndDirection, effBasis.column2 ) ) {
 									// effBasis  ... beginLink to current effector basis.
 									// bendBasis ... beginLink to default bendLink0 basis.
 									// endBasis  ... beginLink to default effector basis.
@@ -885,13 +883,13 @@ namespace SA
 											float cosTraceLimitUAngle = _notThumb1PitchUTraceSmooth.cos;
 											if( traceLimitUAngle <= IKEpsilon || endEffDotX < cosTraceLimitUAngle ) {
 												Vector3 rotBendY = Vector3.Cross( effZ, rotBendX );
-												if( _SafeNormalize( ref rotBendY ) ) {
+												if( SAFBIKVecNormalize( ref rotBendY ) ) {
 													float cosTraceAngle = _notThumb1PitchUTrace.cos;
 													float sinTraceAngle = _notThumb1PitchUTrace.sin;
 													beginLinkDirX = _Rotate( ref rotBendX, ref rotBendY, cosTraceAngle, isRight ? -sinTraceAngle : sinTraceAngle );
 												}
 											} else {
-												float r = _SafeAcos( endEffDotX );
+												float r = SAFBIKAcos( endEffDotX );
 												r = r / traceLimitUAngle;
 												r = _notThumb1PitchUTrace.angle * r;
 												beginLinkDirX = _Rotate( ref bendX, ref bendY, r );
@@ -921,11 +919,11 @@ namespace SA
 													if( traceAngle <= IKEpsilon ) {
 														imm_traceRate = 1.0f;
 													} else {
-														float r = _SafeAcos( endEffDotX );
+														float r = SAFBIKAcos( endEffDotX );
 														imm_traceRate = r / traceAngle;
 													}
 												} else {
-													float r = _SafeAcos( endEffDotX );
+													float r = SAFBIKAcos( endEffDotX );
 													r = r / traceAngle;
 													imm_traceRate = r;
 													r = (_notThumb1PitchLTrace.angle - baseAngle) * r;
@@ -943,7 +941,7 @@ namespace SA
 												float extendLen = 0.0f;
 												if( !imm_isLimitL ) {
 													extendLen = Vector3.Dot( beginLinkDirX, effX );
-													extendLen = Sqrt( 1.0f - extendLen * extendLen ); // Cosine to Sine
+													extendLen = SAFBIKSqrt( 1.0f - extendLen * extendLen ); // Cosine to Sine
 													extendLen *= linkLength0; // Sine Length
 												}
 												float smoothLen = linkLength2 * 0.25f;
@@ -974,12 +972,12 @@ namespace SA
 							return false;
 						}
 
-						if( !_ComputeBasisFromXZLockX( out beginLink.boneTransform.basis, isRight ? beginLinkDirX : -beginLinkDirX, solveDirZ ) ) {
+						if( !SAFBIKComputeBasisFromXZLockX( out beginLink.boneTransform.basis, isRight ? beginLinkDirX : -beginLinkDirX, solveDirZ ) ) {
 							return false;
 						}
 
 						beginLink.boneTransform.origin = beginLinkPosition;
-						beginLink.boneTransform.basis *= beginLink.solvedToBoneBasis;
+						SAFBIKMatMultRet0( ref beginLink.boneTransform.basis, ref beginLink.solvedToBoneBasis );
 
 						bendingLink0Position = beginLink.boneTransform * (bendingLink0.bone._defaultPosition - beginLink.bone._defaultPosition);
 						bendingLink1Position = beginLink.boneTransform * (bendingLink1.bone._defaultPosition - beginLink.bone._defaultPosition);
@@ -990,9 +988,7 @@ namespace SA
 						Vector3 bendingLink0ToEffectorDirection = basedEffectorPosition - bendingLink0Position;
 						Vector3 bendingLink0ToBendingLink0Direction = bendingLink1Position - bendingLink0Position;
 						Vector3 bendingLink0ToEndDirection = endPosition - bendingLink0Position;
-						if( !_SafeNormalize( ref bendingLink0ToEffectorDirection ) ||
-							!_SafeNormalize( ref bendingLink0ToBendingLink0Direction ) ||
-							!_SafeNormalize( ref bendingLink0ToEndDirection ) ) {
+						if( !SAFBIKVecNormalize3( ref bendingLink0ToEffectorDirection, ref bendingLink0ToBendingLink0Direction, ref bendingLink0ToEndDirection ) ) {
 							return false;
 						}
 
@@ -1000,14 +996,14 @@ namespace SA
 
 						{
 							Matrix3x3 effBasis;
-							if( !_ComputeBasisFromXZLockX( out effBasis, isRight ? bendingLink0ToEffectorDirection : -bendingLink0ToEffectorDirection, solveDirZ ) ) {
+							if( !SAFBIKComputeBasisFromXZLockX( out effBasis, isRight ? bendingLink0ToEffectorDirection : -bendingLink0ToEffectorDirection, solveDirZ ) ) {
 								return false;
 							}
 							Matrix3x3 bendBasis;
 							Matrix3x3 endBasis;
 							// Effector direction stamp X/Y Plane.(Feedback Y Axis.)
-							if( !_ComputeBasisFromXZLockZ( out bendBasis, isRight ? bendingLink0ToBendingLink0Direction : -bendingLink0ToBendingLink0Direction, effBasis.column2 ) ||
-								!_ComputeBasisFromXZLockZ( out endBasis, isRight ? bendingLink0ToEndDirection : -bendingLink0ToEndDirection, effBasis.column2 ) ) {
+							if( !SAFBIKComputeBasisFromXZLockZ( out bendBasis, isRight ? bendingLink0ToBendingLink0Direction : -bendingLink0ToBendingLink0Direction, effBasis.column2 ) ||
+								!SAFBIKComputeBasisFromXZLockZ( out endBasis, isRight ? bendingLink0ToEndDirection : -bendingLink0ToEndDirection, effBasis.column2 ) ) {
 								return false;
 							}
 
@@ -1028,29 +1024,31 @@ namespace SA
 							}
 						}
 
-						if( !_ComputeBasisFromXZLockX( out bendingLink0.boneTransform.basis, isRight ? bendingLink0DirX : -bendingLink0DirX, solveDirZ ) ) {
+						if( !SAFBIKComputeBasisFromXZLockX( out bendingLink0.boneTransform.basis, isRight ? bendingLink0DirX : -bendingLink0DirX, solveDirZ ) ) {
 							return false;
 						}
 
 						bendingLink0.boneTransform.origin = bendingLink0Position;
-						bendingLink0.boneTransform.basis *= bendingLink0.solvedToBoneBasis;
+						SAFBIKMatMultRet0( ref bendingLink0.boneTransform.basis, ref bendingLink0.solvedToBoneBasis );
 
 						bendingLink1Position = bendingLink0.boneTransform * (bendingLink1.bone._defaultPosition - bendingLink0.bone._defaultPosition);
 
 						{
 							Vector3 dirX = basedEffectorPosition - bendingLink1Position;
-							if( !_SafeNormalize( ref dirX ) ) {
+							if( !SAFBIKVecNormalize( ref dirX ) ) {
 								return false;
 							}
 
-							Vector3 dirZ = bendingLink0.boneTransform.basis.Multiply( bendingLink1.boneToSolvedBasis.column2 );
-							if( !_ComputeBasisFromXZLockX( out bendingLink1.boneTransform.basis, isRight ? dirX : -dirX, dirZ ) ) {
+							Vector3 dirZ;
+							SAFBIKMatMultVec( out dirZ, ref bendingLink0.boneTransform.basis, ref bendingLink1.boneToSolvedBasis.column2 );
+
+							if( !SAFBIKComputeBasisFromXZLockX( out bendingLink1.boneTransform.basis, isRight ? dirX : -dirX, dirZ ) ) {
 								return false;
 							}
 
 							bendingLink1.boneTransform.origin = bendingLink1Position;
-							bendingLink1.boneTransform.basis *= bendingLink1.solvedToBoneBasis;
-						}
+							SAFBIKMatMultRet0( ref bendingLink1.boneTransform.basis, ref bendingLink1.solvedToBoneBasis );
+                        }
 					}
 				}
 
@@ -1072,31 +1070,33 @@ namespace SA
 						// Limit angle for finger0.
 						if( !isUpper ) {
 							Matrix3x3 baseBasis;
-							Vector3 dirX = parentTransform.basis.Multiply( beginLink.boneToSolvedBasis.column0 );
-							if( _ComputeBasisFromXZLockZ( out baseBasis, dirX, solveDirZ ) ) {
-								Matrix3x3 baseBasisInv = baseBasis.transpose;
+							Vector3 dirX;
+							SAFBIKMatMultVec( out dirX, ref parentTransform.basis, ref beginLink.boneToSolvedBasis.column0 );
 
-								Vector3 localFingerSolve = baseBasisInv * linkSolved;
+							if( SAFBIKComputeBasisFromXZLockZ( out baseBasis, dirX, solveDirZ ) ) {
+								Vector3 localFingerSolve;
+								SAFBIKMatMultVecInv( out localFingerSolve, ref baseBasis, ref linkSolved );
+
 								float finX = localFingerSolve.x;
 								float finY = localFingerSolve.y;
 								float finZ = localFingerSolve.z;
 
 								float cosNotThumb1PitchLLimit = _notThumb1PitchLLimit.cos;
 								if( (isRight && finX < cosNotThumb1PitchLLimit) || (!isRight && finX > -cosNotThumb1PitchLLimit) ) {
-									float lenY = Sqrt( 1.0f - (cosNotThumb1PitchLLimit * cosNotThumb1PitchLLimit + finZ * finZ) );
+									float lenY = SAFBIKSqrt( 1.0f - (cosNotThumb1PitchLLimit * cosNotThumb1PitchLLimit + finZ * finZ) );
 									localFingerSolve.x = isRight ? cosNotThumb1PitchLLimit : -cosNotThumb1PitchLLimit;
 									localFingerSolve.y = (finY >= 0.0f) ? lenY : -lenY;
-									linkSolved = baseBasis * localFingerSolve;
+									SAFBIKMatMultVec( out linkSolved, ref baseBasis, ref localFingerSolve );
 								}
 							}
 						}
 
-						if( !_ComputeBasisFromXZLockX( out beginLink.boneTransform.basis, isRight ? linkSolved : -linkSolved, solveDirZ ) ) {
+						if( !SAFBIKComputeBasisFromXZLockX( out beginLink.boneTransform.basis, isRight ? linkSolved : -linkSolved, solveDirZ ) ) {
 							return false;
 						}
 
 						beginLink.boneTransform.origin = beginLinkPosition;
-						beginLink.boneTransform.basis *= beginLink.solvedToBoneBasis;
+						SAFBIKMatMultRet0( ref beginLink.boneTransform.basis, ref beginLink.solvedToBoneBasis );
 					}
 
 					{
@@ -1105,9 +1105,11 @@ namespace SA
 						// Forcefix:
 						Vector3 bendingLink0ToEffector = effectorPosition - bendingLink0Position;
 
-						Vector3 dirZ = beginLink.boneTransform.basis.Multiply( _internalValues.defaultRootBasis.column2 );
+						Vector3 dirZ;
+						SAFBIKMatMultVec( out dirZ, ref beginLink.boneTransform.basis, ref _internalValues.defaultRootBasis.column2 );
+
 						solveDirY = Vector3.Cross( dirZ, bendingLink0ToEffector );
-						if( !_SafeNormalize( ref solveDirY ) ) {
+						if( !SAFBIKVecNormalize( ref solveDirY ) ) {
 							return false;
 						}
 
@@ -1126,36 +1128,43 @@ namespace SA
 							return false;
 						}
 
-						dirZ = beginLink.boneTransform.basis.Multiply( bendingLink0.boneToSolvedBasis.column2 );
-						if( !_ComputeBasisFromXZLockX( out bendingLink0.boneTransform.basis, isRight ? linkSolved : -linkSolved, dirZ ) ) {
+						SAFBIKMatMultVec( out dirZ, ref beginLink.boneTransform.basis, ref bendingLink0.boneToSolvedBasis.column2 );
+
+						if( !SAFBIKComputeBasisFromXZLockX( out bendingLink0.boneTransform.basis, isRight ? linkSolved : -linkSolved, dirZ ) ) {
 							return false;
 						}
 
 						bendingLink0.boneTransform.origin = bendingLink0Position;
-						bendingLink0.boneTransform.basis *= bendingLink0.solvedToBoneBasis;
-					}
+						SAFBIKMatMultRet0( ref bendingLink0.boneTransform.basis, ref bendingLink0.solvedToBoneBasis );
+                    }
 
 					{
 						Vector3 bendingLink1Position = bendingLink0.boneTransform * (bendingLink1.bone._defaultPosition - bendingLink0.bone._defaultPosition);
 
 						Vector3 dirX = effectorPosition - bendingLink1Position;
-						if( !_SafeNormalize( ref dirX ) ) {
+						if( !SAFBIKVecNormalize( ref dirX ) ) {
 							return false;
 						}
 
-						Vector3 dirZ = bendingLink0.boneTransform.basis.Multiply( bendingLink1.boneToSolvedBasis.column2 );
-						if( !_ComputeBasisFromXZLockX( out bendingLink1.boneTransform.basis, isRight ? dirX : -dirX, dirZ ) ) {
+						Vector3 dirZ;
+						SAFBIKMatMultVec( out dirZ, ref bendingLink0.boneTransform.basis, ref bendingLink1.boneToSolvedBasis.column2 );
+
+						if( !SAFBIKComputeBasisFromXZLockX( out bendingLink1.boneTransform.basis, isRight ? dirX : -dirX, dirZ ) ) {
 							return false;
 						}
 
 						bendingLink1.boneTransform.origin = bendingLink1Position;
-						bendingLink1.boneTransform.basis *= bendingLink1.solvedToBoneBasis;
-					}
+						SAFBIKMatMultRet0( ref bendingLink1.boneTransform.basis, ref bendingLink1.solvedToBoneBasis );
+                    }
 				}
 
-				beginLink.bone.worldRotation = beginLink.boneTransform.basis * beginLink.bone._defaultBasis;
-				bendingLink0.bone.worldRotation = bendingLink0.boneTransform.basis * bendingLink0.bone._defaultBasis;
-				bendingLink1.bone.worldRotation = bendingLink1.boneTransform.basis * bendingLink1.bone._defaultBasis;
+				Quaternion worldRotation;
+				SAFBIKMatMultGetRot( out worldRotation, ref beginLink.boneTransform.basis, ref beginLink.bone._defaultBasis );
+				beginLink.bone.worldRotation = worldRotation;
+				SAFBIKMatMultGetRot( out worldRotation, ref bendingLink0.boneTransform.basis, ref bendingLink0.bone._defaultBasis );
+				bendingLink0.bone.worldRotation = worldRotation;
+				SAFBIKMatMultGetRot( out worldRotation, ref bendingLink1.boneTransform.basis, ref bendingLink1.bone._defaultBasis );
+				bendingLink1.bone.worldRotation = worldRotation;
 				return true;
 			}
 
@@ -1200,8 +1209,10 @@ namespace SA
 
 						// Limit yaw pitch for thumb0 to effector.
 						if( _thumbBranch.thumb0_isLimited ) {
-							Matrix3x3 beginToEndBasis = parentTransform.basis * fingerBranch.boneToSolvedBasis;
-							Vector3 localEffectorDirection = beginToEndBasis.transpose * dirX;
+							Matrix3x3 beginToEndBasis;
+							SAFBIKMatMult( out beginToEndBasis, ref parentTransform.basis, ref fingerBranch.boneToSolvedBasis );
+							Vector3 localEffectorDirection;
+							SAFBIKMatMultVecInv( out localEffectorDirection, ref beginToEndBasis, ref dirX );
 							if( _LimitYZ(
 								isRight,
 								ref localEffectorDirection,
@@ -1209,17 +1220,19 @@ namespace SA
 								_thumbBranch.thumb0_upperLimit,
 								_thumbBranch.thumb0_innerLimit,
 								_thumbBranch.thumb0_outerLimit ) ) {
-								dirX = beginToEndBasis * localEffectorDirection; // Local to world.
+								SAFBIKMatMultVec( out dirX, ref beginToEndBasis, ref localEffectorDirection ); // Local to world.
 							}
 						}
 
-						Vector3 dirY = parentTransform.basis.Multiply( thumbLink0.thumb_boneToSolvedBasis.column1 );
-						if( !_ComputeBasisFromXYLockX( out fingerLink0.boneTransform.basis, isRight ? dirX : -dirX, dirY ) ) {
+						Vector3 dirY;
+						SAFBIKMatMultVec( out dirY, ref parentTransform.basis, ref thumbLink0.thumb_boneToSolvedBasis.column1 );
+
+						if( !SAFBIKComputeBasisFromXYLockX( out fingerLink0.boneTransform.basis, isRight ? dirX : -dirX, dirY ) ) {
 							return false;
 						}
 
 						fingerLink0.boneTransform.origin = fingerLinkPosition0;
-						fingerLink0.boneTransform.basis *= thumbLink0.thumb_solvedToBoneBasis;
+						SAFBIKMatMultRet0( ref fingerLink0.boneTransform.basis, ref thumbLink0.thumb_solvedToBoneBasis );
 					}
 
 					// thumb0 / Limit length based thumb1/2 (Type3)
@@ -1230,13 +1243,13 @@ namespace SA
 
 						if( effectorLength1to3 < _thumbBranch.linkLength1to3 - IKEpsilon ) {
 							Vector3 effectorTranslate0to3 = effectorPosition - fingerLink0.boneTransform.origin;
-							float effectorLength0to3Sq = effectorTranslate0to3.sqrMagnitude;
-							float effectorLength0to3 = Sqrt( effectorLength0to3Sq );
+							float effectorLength0to3Sq;
+							float effectorLength0to3 = SAFBIKVecLengthAndLengthSq( out effectorLength0to3Sq, ref effectorTranslate0to3 );
 
 							float baseTheta = 1.0f;
 							if( effectorLength0to3 > IKEpsilon ) {
 								Vector3 baseDirection0to1 = fingerLinkPosition1 - fingerLink0.boneTransform.origin;
-								if( _SafeNormalize( ref baseDirection0to1 ) ) {
+								if( SAFBIKVecNormalize( ref baseDirection0to1 ) ) {
 									Vector3 effectorDirection0to3 = effectorTranslate0to3 * (1.0f / effectorLength0to3);
 									baseTheta = Vector3.Dot( effectorDirection0to3, baseDirection0to1 );
 								}
@@ -1251,22 +1264,26 @@ namespace SA
 
 							float moveTheta = _ComputeTriangleTheta( moveLenA, moveLenB, moveLenC, moveLenASq, moveLenBSq, moveLenCSq );
 							if( moveTheta < baseTheta ) {
-								float newAngle = _SafeAcos( moveTheta ) - _SafeAcos( baseTheta );
+								float newAngle = SAFBIKAcos( moveTheta ) - SAFBIKAcos( baseTheta );
 								if( newAngle > 0.01f * Mathf.Deg2Rad ) {
 									// moveLenAtoAD = Move length thumb1 origin with bending thumb0.
 									float moveLenASq2 = moveLenASq * 2.0f;
-									float moveLenAtoAD = Sqrt( Mathf.Max( moveLenASq2 * (1.0f - Mathf.Cos( newAngle )), 0.0f ) );
+									float moveLenAtoAD = SAFBIKSqrt( moveLenASq2 * (1.0f - SAFBIKCos( newAngle )) );
 									if( moveLenAtoAD > IKEpsilon ) {
-										Vector3 solveDirection = fingerLink0.boneTransform.basis * _thumbBranch.thumbSolveZ;
+										Vector3 solveDirection;
+										SAFBIKMatMultVec( out solveDirection, ref fingerLink0.boneTransform.basis, ref _thumbBranch.thumbSolveZ );
+
 										fingerLinkPosition1 += solveDirection * moveLenAtoAD;
 
 										Vector3 newX = fingerLinkPosition1 - fingerLink0.boneTransform.origin;
-										if( _SafeNormalize( ref newX ) ) {
-											Vector3 dirY = fingerLink0.boneTransform.basis.Multiply( fingerLink0.boneToSolvedBasis.column1 );
+										if( SAFBIKVecNormalize( ref newX ) ) {
+											Vector3 dirY;
+											SAFBIKMatMultVec( out dirY, ref fingerLink0.boneTransform.basis, ref fingerLink0.boneToSolvedBasis.column1 );
+
 											Matrix3x3 solveBasis0;
-											if( _ComputeBasisFromXYLockX( out solveBasis0, isRight ? newX : -newX, dirY ) ) {
-												fingerLink0.boneTransform.basis = solveBasis0 * fingerLink0.solvedToBoneBasis;
-											}
+											if( SAFBIKComputeBasisFromXYLockX( out solveBasis0, isRight ? newX : -newX, dirY ) ) {
+												SAFBIKMatMult( out fingerLink0.boneTransform.basis, ref solveBasis0, ref fingerLink0.solvedToBoneBasis );
+                                            }
 										}
 									}
 								}
@@ -1281,22 +1298,24 @@ namespace SA
 							// Simply, compute direction thumb1 to effector.
 							// (Compute push direction for thumb1.)
 							Vector3 dirX = effectorPosition - fingerLinkPosition1;
-							if( !_SafeNormalize( ref dirX ) ) {
+							if( !SAFBIKVecNormalize( ref dirX ) ) {
 								return false;
 							}
 
-							Vector3 dirY = fingerLink0.boneTransform.basis.Multiply( thumbLink1.thumb_boneToSolvedBasis.column1 );
-							if( !_ComputeBasisFromXYLockX( out fingerLink1.boneTransform.basis, isRight ? dirX : -dirX, dirY ) ) {
+							Vector3 dirY;
+							SAFBIKMatMultVec( out dirY, ref fingerLink0.boneTransform.basis, ref thumbLink1.thumb_boneToSolvedBasis.column1 );
+
+							if( !SAFBIKComputeBasisFromXYLockX( out fingerLink1.boneTransform.basis, isRight ? dirX : -dirX, dirY ) ) {
 								return false;
 							}
 
 							fingerLink1.boneTransform.origin = fingerLinkPosition1;
-							fingerLink1.boneTransform.basis *= thumbLink1.thumb_solvedToBoneBasis;
+							SAFBIKMatMultRet0( ref fingerLink1.boneTransform.basis, ref thumbLink1.thumb_solvedToBoneBasis );
 						}
 
 						Vector3 effectorTranslate1to3 = effectorPosition - fingerLink1.boneTransform.origin;
 						float effectorLength1to3Sq = effectorTranslate1to3.sqrMagnitude;
-						float effectorLength1to3 = Sqrt( effectorLength1to3Sq );
+						float effectorLength1to3 = SAFBIKSqrt( effectorLength1to3Sq );
 
 						float moveLenA = _thumbBranch.linkLength1to2;
 						float moveLenASq = _thumbBranch.linkLength1to2Sq;
@@ -1308,22 +1327,24 @@ namespace SA
 						// Compute angle moved A/B origin.
 						float moveThetaAtoB = _ComputeTriangleTheta( moveLenA, moveLenB, moveLenC, moveLenASq, moveLenBSq, moveLenCSq );
 						if( moveThetaAtoB < _thumbBranch.thumb1_baseThetaAtoB ) {
-							float newAngle = _SafeAcos( moveThetaAtoB ) - _thumbBranch.thumb1_Acos_baseThetaAtoB;
+							float newAngle = SAFBIKAcos( moveThetaAtoB ) - _thumbBranch.thumb1_Acos_baseThetaAtoB;
 							if( newAngle > 0.01f * Mathf.Deg2Rad ) {
 								float moveLenASq2 = moveLenASq * 2.0f;
-								float moveLenAtoAD = Sqrt( Mathf.Max( moveLenASq2 - moveLenASq2 * Mathf.Cos( newAngle ), 0.0f ) );
+								float moveLenAtoAD = SAFBIKSqrt( moveLenASq2 - moveLenASq2 * SAFBIKCos( newAngle ) );
 								{
-									Vector3 solveDirection = fingerLink1.boneTransform.basis * _thumbBranch.thumbSolveZ;
+									Vector3 solveDirection;
+									SAFBIKMatMultVec( out solveDirection, ref fingerLink1.boneTransform.basis, ref _thumbBranch.thumbSolveZ );
 									Vector3 fingerLinkPosition2 = fingerLink1.boneTransform * (fingerLink2.bone._defaultPosition - fingerLink1.bone._defaultPosition);
 									fingerLinkPosition2 += solveDirection * moveLenAtoAD;
 
 									Vector3 newX = fingerLinkPosition2 - fingerLink1.boneTransform.origin;
-									if( _SafeNormalize( ref newX ) ) {
-										Vector3 dirY = fingerLink1.boneTransform.basis.Multiply( fingerLink1.boneToSolvedBasis.column1 );
+									if( SAFBIKVecNormalize( ref newX ) ) {
+										Vector3 dirY;
+										SAFBIKMatMultVec( out dirY, ref fingerLink1.boneTransform.basis, ref fingerLink1.boneToSolvedBasis.column1 );
 										Matrix3x3 solveBasis1;
-										if( _ComputeBasisFromXYLockX( out solveBasis1, isRight ? newX : -newX, dirY ) ) {
-											fingerLink1.boneTransform.basis = solveBasis1 * fingerLink1.solvedToBoneBasis;
-										}
+										if( SAFBIKComputeBasisFromXYLockX( out solveBasis1, isRight ? newX : -newX, dirY ) ) {
+											SAFBIKMatMult( out fingerLink1.boneTransform.basis, ref solveBasis1, ref fingerLink1.solvedToBoneBasis );
+                                        }
 									}
 								}
 							}
@@ -1335,23 +1356,28 @@ namespace SA
 						// Simply, compute direction thumb2 to effector.
 						Vector3 fingerLinkPosition2 = fingerLink1.boneTransform * (fingerLink2.bone._defaultPosition - fingerLink1.bone._defaultPosition);
 						Vector3 dirX = effectorPosition - fingerLinkPosition2;
-						if( !_SafeNormalize( ref dirX ) ) {
+						if( !SAFBIKVecNormalize( ref dirX ) ) {
 							return false;
 						}
 
-						Vector3 dirY = fingerLink1.boneTransform.basis.Multiply( thumbLink2.thumb_boneToSolvedBasis.column1 );
-						if( !_ComputeBasisFromXYLockX( out fingerLink2.boneTransform.basis, isRight ? dirX : -dirX, dirY ) ) {
+						Vector3 dirY;
+						SAFBIKMatMultVec( out dirY, ref fingerLink1.boneTransform.basis, ref thumbLink2.thumb_boneToSolvedBasis.column1 );
+						if( !SAFBIKComputeBasisFromXYLockX( out fingerLink2.boneTransform.basis, isRight ? dirX : -dirX, dirY ) ) {
 							return false;
 						}
 
 						fingerLink2.boneTransform.origin = fingerLinkPosition2;
-						fingerLink2.boneTransform.basis *= thumbLink2.thumb_solvedToBoneBasis;
+						SAFBIKMatMultRet0( ref fingerLink2.boneTransform.basis, ref thumbLink2.thumb_solvedToBoneBasis );
 					}
 				}
 
-				fingerLink0.bone.worldRotation = fingerLink0.boneTransform.basis * fingerLink0.bone._defaultBasis;
-				fingerLink1.bone.worldRotation = fingerLink1.boneTransform.basis * fingerLink1.bone._defaultBasis;
-				fingerLink2.bone.worldRotation = fingerLink2.boneTransform.basis * fingerLink2.bone._defaultBasis;
+				Quaternion worldRotation;
+				SAFBIKMatMultGetRot( out worldRotation, ref fingerLink0.boneTransform.basis, ref fingerLink0.bone._defaultBasis );
+				fingerLink0.bone.worldRotation = worldRotation;
+				SAFBIKMatMultGetRot( out worldRotation, ref fingerLink1.boneTransform.basis, ref fingerLink1.bone._defaultBasis );
+				fingerLink1.bone.worldRotation = worldRotation;
+				SAFBIKMatMultGetRot( out worldRotation, ref fingerLink2.boneTransform.basis, ref fingerLink2.bone._defaultBasis );
+				fingerLink2.bone.worldRotation = worldRotation;
 				return true;
 			}
 

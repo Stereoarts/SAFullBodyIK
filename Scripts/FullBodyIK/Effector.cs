@@ -7,12 +7,11 @@
 #endif
 
 using UnityEngine;
-using Util = SA.FullBodyIKUtil;
 
 namespace SA
 {
 
-	public partial class FullBodyIK : MonoBehaviour
+	public partial class FullBodyIK
 	{
 		[System.Serializable]
 		public class Effector
@@ -21,14 +20,14 @@ namespace SA
 			enum _EffectorFlags
 			{
 				None = 0x00,
-				RotationContained = 0x01, // Pelvis/Wrist/Foot
+				RotationContained = 0x01, // Hips/Wrist/Foot
 				PullContained = 0x02, // Foot/Wrist
 			}
 			
 			// Memo: If transform is created & cloned this instance, will be cloned effector transform, too.
 			public Transform transform = null;
 
-			public bool positionEnabled = true;
+			public bool positionEnabled = false;
 			public bool rotationEnabled = false;
 			public float positionWeight = 1.0f;
 			public float rotationWeight = 1.0f;
@@ -55,9 +54,9 @@ namespace SA
 			// These aren't serialize field.
 			// Memo: If this instance is cloned, will be cloned these properties, too.
 			Effector _parentEffector = null;
-			Bone _bone = null; // Pelvis : Pelvis Eyes : Head
-			Bone _leftBone = null; // Pelvis : LeftLeg Eyes : LeftEye Others : null
-			Bone _rightBone = null; // Pelvis : RightLeg Eyes : RightEye Others : null
+			Bone _bone = null; // Hips : Hips Eyes : Head
+			Bone _leftBone = null; // Hips : LeftLeg Eyes : LeftEye Others : null
+			Bone _rightBone = null; // Hips : RightLeg Eyes : RightEye Others : null
 
 			// Memo: If transform is created & cloned this instance, will be cloned effector transform, too.
 			[SerializeField]
@@ -109,7 +108,7 @@ namespace SA
 			public bool transformIsAlive {
 				get {
 					if( _transformIsAlive == -1 ) {
-						_transformIsAlive = Util.CheckAlive( ref this.transform ) ? 1 : 0;
+						_transformIsAlive = CheckAlive( ref this.transform ) ? 1 : 0;
 					}
 
 					return _transformIsAlive != 0;
@@ -118,10 +117,10 @@ namespace SA
 
 			bool _defaultLocalBasisIsIdentity {
 				get {
-					if( (_effectorFlags & _EffectorFlags.RotationContained) != _EffectorFlags.None ) { // Pelvis, Wrist, Foot
+					if( (_effectorFlags & _EffectorFlags.RotationContained) != _EffectorFlags.None ) { // Hips, Wrist, Foot
 						Assert( _bone != null );
-						if( _bone != null && _bone.localAxisFrom != _LocalAxisFrom.None && _bone.boneType != BoneType.Pelvis ) { // Exclude Pelvis.
-							// Pelvis is identity transform.
+						if( _bone != null && _bone.localAxisFrom != _LocalAxisFrom.None && _bone.boneType != BoneType.Hips ) { // Exclude Hips.
+							// Hips is identity transform.
 							return false;
 						}
 					}
@@ -208,7 +207,7 @@ namespace SA
 			static _EffectorFlags _GetEffectorFlags( EffectorType effectorType )
 			{
 				switch( effectorType ) {
-				case EffectorType.Pelvis:	return _EffectorFlags.RotationContained;
+				case EffectorType.Hips:	return _EffectorFlags.RotationContained;
 				case EffectorType.Head:		return _EffectorFlags.RotationContained;
 				case EffectorType.Wrist:	return _EffectorFlags.RotationContained | _EffectorFlags.PullContained;
 				case EffectorType.Foot:		return _EffectorFlags.RotationContained | _EffectorFlags.PullContained;
@@ -231,10 +230,10 @@ namespace SA
 							this.transform = go.transform;
 							this._createdTransform = go.transform;
 						} else { // Cleanup created transform.
-							Util.DestroyImmediate( ref _createdTransform, true );
+							DestroyImmediate( ref _createdTransform, true );
 						}
 					} else {
-						Util.CheckAlive( ref _createdTransform ); // Overwrite weak reference.
+						CheckAlive( ref _createdTransform ); // Overwrite weak reference.
 					}
 				} else { // Cleanup created transform.
 					if( _createdTransform != null ) {
@@ -246,7 +245,7 @@ namespace SA
 					_createdTransform = null; // Overwrite weak reference.
 				}
 
-				_transformIsAlive = Util.CheckAlive( ref this.transform ) ? 1 : 0;
+				_transformIsAlive = CheckAlive( ref this.transform ) ? 1 : 0;
 			}
 
 			public void Prepare( FullBodyIK fullBodyIK )
@@ -260,15 +259,15 @@ namespace SA
 				}
 				
 				if( _effectorType == EffectorType.Root ) {
-					_defaultPosition = fullBodyIK._internalValues.defaultRootPosition;
-					_defaultRotation = fullBodyIK._internalValues.defaultRootRotation;
+					_defaultPosition = fullBodyIK.internalValues.defaultRootPosition;
+					_defaultRotation = fullBodyIK.internalValues.defaultRootRotation;
 				} else if( _effectorType == EffectorType.HandFinger ) {
 					Assert( _bone != null );
 					if( _bone != null ) {
 						if( _bone.transformIsAlive ) {
 							_defaultPosition = bone._defaultPosition;
 						} else { // Failsafe. Simulate finger tips.
-							// Memo: If transformIsAlive == false, _parentBone is null.
+								 // Memo: If transformIsAlive == false, _parentBone is null.
 							Assert( _bone.parentBoneLocationBased != null && _bone.parentBoneLocationBased.parentBoneLocationBased != null );
 							if( _bone.parentBoneLocationBased != null && _bone.parentBoneLocationBased.parentBoneLocationBased != null ) {
 								Vector3 tipTranslate = (bone.parentBoneLocationBased._defaultPosition - bone.parentBoneLocationBased.parentBoneLocationBased._defaultPosition);
@@ -279,7 +278,7 @@ namespace SA
 					}
 				} else if( _effectorType == EffectorType.Eyes ) {
 					Assert( _bone != null );
-					bool isLegacy = (fullBodyIK._settings.modelTemplate == ModelTemplate.UnityChan);
+					bool isLegacy = (fullBodyIK.settings.modelTemplate == ModelTemplate.UnityChan);
 					if( !isLegacy && _bone != null && _bone.transformIsAlive &&
                         _leftBone != null && _leftBone.transformIsAlive &&
                         _rightBone != null && _rightBone.transformIsAlive ) {
@@ -290,15 +289,15 @@ namespace SA
 						// _bone ... Head / _bone.parentBone ... Neck
 						if( _bone.parentBone != null && _bone.parentBone.transformIsAlive && _bone.parentBone.boneType == BoneType.Neck ) {
 							Vector3 neckToHead = _bone._defaultPosition - _bone.parentBone._defaultPosition;
-							float neckToHeadY = Mathf.Max( neckToHead.y, 0.0f );
-							_defaultPosition += fullBodyIK._internalValues.defaultRootBasis.column1 * neckToHeadY;
-							_defaultPosition += fullBodyIK._internalValues.defaultRootBasis.column2 * neckToHeadY;
+							float neckToHeadY = (neckToHead.y > 0.0f) ? neckToHead.y : 0.0f;
+                            _defaultPosition += fullBodyIK.internalValues.defaultRootBasis.column1 * neckToHeadY;
+							_defaultPosition += fullBodyIK.internalValues.defaultRootBasis.column2 * neckToHeadY;
 						}
 					}
-				} else if( _effectorType == EffectorType.Pelvis ) {
+				} else if( _effectorType == EffectorType.Hips ) {
 					Assert( _bone != null && _leftBone != null && _rightBone != null );
 					if( _bone != null && _leftBone != null && _rightBone != null ) {
-						// _bone ... Pelvis / _leftBone ... LeftLeg / _rightBone ... RightLeg
+						// _bone ... Hips / _leftBone ... LeftLeg / _rightBone ... RightLeg
 						_defaultPosition = (_leftBone._defaultPosition + _rightBone._defaultPosition) * 0.5f;
 					}
 				} else { // Normally case.
@@ -314,7 +313,7 @@ namespace SA
 				// Reset transform.
 				if( this.transformIsAlive ) {
 					if( _effectorType == EffectorType.Eyes ) {
-						this.transform.position = _defaultPosition + fullBodyIK._internalValues.defaultRootBasis.column2 * Eyes_DefaultDistance;
+						this.transform.position = _defaultPosition + fullBodyIK.internalValues.defaultRootBasis.column2 * Eyes_DefaultDistance;
 					} else {
 						this.transform.position = _defaultPosition;
 					}
@@ -331,7 +330,7 @@ namespace SA
 				_worldPosition = _defaultPosition;
 				_worldRotation = _defaultRotation;
 				if( _effectorType == EffectorType.Eyes ) {
-					_worldPosition += fullBodyIK._internalValues.defaultRootBasis.column2 * Eyes_DefaultDistance;
+					_worldPosition += fullBodyIK.internalValues.defaultRootBasis.column2 * Eyes_DefaultDistance;
 				}
 			}
 

@@ -1,15 +1,14 @@
 ﻿// Copyright (c) 2016 Nora
 // Released under the MIT license
 // http://opensource.org/licenses/mit-license.phpusing
+
 using UnityEngine;
 
 namespace SA
 {
 
-	public partial class FullBodyIK : MonoBehaviour
+	public partial class FullBodyIK
 	{
-		const float IKMoveEpsilon = 1e-05f;
-
 		public enum EyesType
 		{
 			Normal,
@@ -83,8 +82,8 @@ namespace SA
 
 		public enum BoneType
 		{
-			Pelvis,
-			Torso,
+			Hips,
+			Spine,
 			Neck,
 			Head,
 			Eye,
@@ -95,9 +94,9 @@ namespace SA
 
 			Shoulder,
 			Arm,
-			ArmTwist,
+			ArmRoll,
 			Elbow,
-			HandTwist,
+			ElbowRoll,
 			Wrist,
 
 			HandFinger,
@@ -108,9 +107,9 @@ namespace SA
 
 		public enum BoneLocation
 		{
-			Pelvis,
-			Torso,
-			Torso2,
+			Hips,
+			Spine,
+			Spine2,
 			Neck,
 			Head,
 			LeftEye,
@@ -127,24 +126,24 @@ namespace SA
 			RightShoulder,
 			LeftArm,
 			RightArm,
-			LeftArmTwist0,
-			LeftArmTwist1,
-			LeftArmTwist2,
-			LeftArmTwist3,
-			RightArmTwist0,
-			RightArmTwist1,
-			RightArmTwist2,
-			RightArmTwist3,
+			LeftArmRoll0,
+			LeftArmRoll1,
+			LeftArmRoll2,
+			LeftArmRoll3,
+			RightArmRoll0,
+			RightArmRoll1,
+			RightArmRoll2,
+			RightArmRoll3,
 			LeftElbow,
 			RightElbow,
-			LeftHandTwist0,
-			LeftHandTwist1,
-			LeftHandTwist2,
-			LeftHandTwist3,
-			RightHandTwist0,
-			RightHandTwist1,
-			RightHandTwist2,
-			RightHandTwist3,
+			LeftElbowRoll0,
+			LeftElbowRoll1,
+			LeftElbowRoll2,
+			LeftElbowRoll3,
+			RightElbowRoll0,
+			RightElbowRoll1,
+			RightElbowRoll2,
+			RightElbowRoll3,
 			LeftWrist,
 			RightWrist,
 
@@ -192,17 +191,17 @@ namespace SA
 
 			Max,
 			Unknown = Max,
-			TorsoU = Torso2,
+			SpineU = Spine2,
 		}
 
-		public const int MaxArmTwistLength = 4;
-		public const int MaxHandTwistLength = 4;
+		public const int MaxArmRollLength = 4;
+		public const int MaxElbowRollLength = 4;
 		public const int MaxHandFingerLength = 4;
 
 		public static BoneType ToBoneType( BoneLocation boneLocation )
 		{
 			switch( boneLocation ) {
-			case BoneLocation.Pelvis:			return BoneType.Pelvis;
+			case BoneLocation.Hips:			return BoneType.Hips;
 			case BoneLocation.Neck:				return BoneType.Neck;
 			case BoneLocation.Head:				return BoneType.Head;
 			case BoneLocation.LeftEye:			return BoneType.Eye;
@@ -225,19 +224,19 @@ namespace SA
 			case BoneLocation.RightWrist:		return BoneType.Wrist;
 			}
 
-			if( (int)boneLocation >= (int)BoneLocation.Torso &&
-				(int)boneLocation <= (int)BoneLocation.TorsoU ) {
-				return BoneType.Torso;
+			if( (int)boneLocation >= (int)BoneLocation.Spine &&
+				(int)boneLocation <= (int)BoneLocation.SpineU ) {
+				return BoneType.Spine;
 			}
 
-			if( (int)boneLocation >= (int)BoneLocation.LeftArmTwist0 &&
-				(int)boneLocation <= (int)BoneLocation.RightArmTwist0 + MaxArmTwistLength - 1 ) {
-				return BoneType.ArmTwist;
+			if( (int)boneLocation >= (int)BoneLocation.LeftArmRoll0 &&
+				(int)boneLocation <= (int)BoneLocation.RightArmRoll0 + MaxArmRollLength - 1 ) {
+				return BoneType.ArmRoll;
 			}
 
-			if( (int)boneLocation >= (int)BoneLocation.LeftHandTwist0 &&
-				(int)boneLocation <= (int)BoneLocation.RightHandTwist0 + MaxHandTwistLength - 1 ) {
-				return BoneType.HandTwist;
+			if( (int)boneLocation >= (int)BoneLocation.LeftElbowRoll0 &&
+				(int)boneLocation <= (int)BoneLocation.RightElbowRoll0 + MaxElbowRollLength - 1 ) {
+				return BoneType.ElbowRoll;
 			}
 
 			if( (int)boneLocation >= (int)BoneLocation.LeftHandThumb0 &&
@@ -276,23 +275,23 @@ namespace SA
 				return Side.Left;
 			}
 
-			if( (int)boneLocation >= (int)BoneLocation.LeftArmTwist0 &&
-				(int)boneLocation <= (int)BoneLocation.LeftArmTwist0 + MaxArmTwistLength - 1 ) {
+			if( (int)boneLocation >= (int)BoneLocation.LeftArmRoll0 &&
+				(int)boneLocation <= (int)BoneLocation.LeftArmRoll0 + MaxArmRollLength - 1 ) {
 				return Side.Left;
 			}
 
-			if( (int)boneLocation >= (int)BoneLocation.RightArmTwist0 &&
-				(int)boneLocation <= (int)BoneLocation.RightArmTwist0 + MaxArmTwistLength - 1 ) {
+			if( (int)boneLocation >= (int)BoneLocation.RightArmRoll0 &&
+				(int)boneLocation <= (int)BoneLocation.RightArmRoll0 + MaxArmRollLength - 1 ) {
 				return Side.Right;
 			}
 
-			if( (int)boneLocation >= (int)BoneLocation.LeftHandTwist0 &&
-				(int)boneLocation <= (int)BoneLocation.LeftHandTwist0 + MaxHandTwistLength - 1 ) {
+			if( (int)boneLocation >= (int)BoneLocation.LeftElbowRoll0 &&
+				(int)boneLocation <= (int)BoneLocation.LeftElbowRoll0 + MaxElbowRollLength - 1 ) {
 				return Side.Left;
 			}
 
-			if( (int)boneLocation >= (int)BoneLocation.RightHandTwist0 &&
-				(int)boneLocation <= (int)BoneLocation.RightHandTwist0 + MaxHandTwistLength - 1 ) {
+			if( (int)boneLocation >= (int)BoneLocation.RightElbowRoll0 &&
+				(int)boneLocation <= (int)BoneLocation.RightElbowRoll0 + MaxElbowRollLength - 1 ) {
 				return Side.Right;
 			}
 
@@ -337,7 +336,7 @@ namespace SA
 		public enum EffectorType
 		{
 			Root,
-			Pelvis,
+			Hips,
 			Neck,
 			Head,
 			Eyes,
@@ -358,7 +357,7 @@ namespace SA
 		public enum EffectorLocation
 		{
 			Root,
-			Pelvis,
+			Hips,
 			Neck,
 			Head,
 			Eyes,
@@ -394,7 +393,7 @@ namespace SA
 		{
 			switch( effectorLocation ) {
 			case EffectorLocation.Root:			return EffectorType.Root;
-			case EffectorLocation.Pelvis:		return EffectorType.Pelvis;
+			case EffectorLocation.Hips:		return EffectorType.Hips;
 			case EffectorLocation.Neck:			return EffectorType.Neck;
 			case EffectorLocation.Head:			return EffectorType.Head;
 			case EffectorLocation.Eyes:			return EffectorType.Eyes;
@@ -506,70 +505,6 @@ namespace SA
 		}
 
 		//----------------------------------------------------------------------------------------------------------------
-
-		[System.Diagnostics.Conditional( "SAFULLBODYIK_DEBUG" )]
-		public static void CheckNormalized( Vector3 v )
-		{
-			float epsilon = 1e-4f;
-			float n = v.x * v.x + v.y * v.y + v.z * v.z;
-			if( n < 1.0f - epsilon || n > 1.0f + epsilon ) {
-				Debug.LogError( "CheckNormalized" );
-				Debug.Break();
-			}
-		}
-
-		[System.Diagnostics.Conditional( "SAFULLBODYIK_DEBUG" )]
-		public static void DebugLog( object msg )
-		{
-			Debug.Log( msg );
-		}
-
-		[System.Diagnostics.Conditional( "SAFULLBODYIK_DEBUG" )]
-		public static void DebugLogWarning( object msg )
-		{
-			Debug.LogWarning( msg );
-		}
-
-		[System.Diagnostics.Conditional( "SAFULLBODYIK_DEBUG" )]
-		public static void DebugLogError( object msg )
-		{
-			Debug.LogError( msg );
-		}
-
-		[System.Diagnostics.Conditional( "SAFULLBODYIK_DEBUG" )]
-		public static void Assert( bool cmp )
-		{
-			if( !cmp ) {
-				Debug.LogError( "Assert" );
-				Debug.Break();
-			}
-		}
-
-		//----------------------------------------------------------------------------------------------------------------
-
-		[System.Diagnostics.Conditional( "SAFULLBODYIK_DEBUG" )]
-		public static void CheckNaN( float f )
-		{
-			if( float.IsNaN( f ) ) {
-				Debug.LogError( "NaN" );
-			}
-		}
-
-		[System.Diagnostics.Conditional( "SAFULLBODYIK_DEBUG" )]
-		public static void CheckNaN( Vector3 v )
-		{
-			if( float.IsNaN( v.x ) || float.IsNaN( v.y ) || float.IsNaN( v.z ) ) {
-				Debug.LogError( "NaN:" + v );
-			}
-		}
-
-		[System.Diagnostics.Conditional( "SAFULLBODYIK_DEBUG" )]
-		public static void CheckNaN( Quaternion q )
-		{
-			if( float.IsNaN( q.x ) || float.IsNaN( q.y ) || float.IsNaN( q.z ) || float.IsNaN( q.w ) ) {
-				Debug.LogError( "NaN:" + q );
-			}
-		}
 	}
 
 }
