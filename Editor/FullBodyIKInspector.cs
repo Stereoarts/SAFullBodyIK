@@ -198,6 +198,7 @@ namespace SA
 				settings.animatorEnabled = (FullBodyIK.AutomaticBool)EditorGUILayout.EnumPopup( "Animator Enabled", settings.animatorEnabled );
 				settings.resetTransforms = (FullBodyIK.AutomaticBool)EditorGUILayout.EnumPopup( "Reset Transforms", settings.resetTransforms );
 				EditorUtil.GUI.Field( "Automatic Prepare Humanoid", ref settings.automaticPrepareHumanoid );
+				EditorUtil.GUI.Field( "Automatic Configure Spine Enabled", ref settings.automaticConfigureSpineEnabled );
 				EditorUtil.GUI.Field( "Automatic Configure Roll Enabled", ref settings.automaticConfigureRollEnabled );
 				EditorUtil.GUI.Field( "Roll Enabled", ref settings.rollEnabled );
 				settings.modelTemplate = (FullBodyIK.ModelTemplate)EditorGUILayout.EnumPopup( "Model Template", settings.modelTemplate );
@@ -208,10 +209,14 @@ namespace SA
 				EditorUtil.GUI.Field( "Lower Solve Enabled", ref settings.bodyIK.lowerSolveEnabled );
 				EditorUtil.GUI.Field( "Compute World Transform", ref settings.bodyIK.computeWorldTransform );
 
+				EditorUtil.GUI.Field( "Upper Solve Hips Enabled", ref settings.bodyIK.upperSolveHipsEnabled );
 				EditorUtil.GUI.Field( "Upper Solve Spine Enabled", ref settings.bodyIK.upperSolveSpineEnabled );
 				EditorUtil.GUI.Field( "Upper Solve Spine 2 Enabled", ref settings.bodyIK.upperSolveSpine2Enabled );
+				EditorUtil.GUI.Field( "Upper Solve Spine 3 Enabled", ref settings.bodyIK.upperSolveSpine3Enabled );
+				EditorUtil.GUI.Field( "Upper Solve Spine 4 Enabled", ref settings.bodyIK.upperSolveSpine4Enabled );
 
 				EditorUtil.GUI.Slider01( "Spine DirX Leg To Arm Rate", ref settings.bodyIK.spineDirXLegToArmRate );
+				EditorUtil.GUI.Slider01( "Spine DirX Leg To Arm To Rate", ref settings.bodyIK.spineDirXLegToArmToRate );
 				EditorUtil.GUI.Slider01( "Spine DirY Lerp Rate", ref settings.bodyIK.spineDirYLerpRate );
 
 				EditorUtil.GUI.Slider01( "Upper PreTranslate Rate", ref settings.bodyIK.upperPreTranslateRate );
@@ -230,6 +235,7 @@ namespace SA
 				EditorUtil.GUI.Slider01( "Upper Continuous PreTranslate Stable Rate", ref settings.bodyIK.upperContinuousPreTranslateStableRate );
 				EditorUtil.GUI.Slider01( "Upper Continuous CenterLeg Rotation Stable Rate", ref settings.bodyIK.upperContinuousCenterLegRotationStableRate );
 				EditorUtil.GUI.Slider01( "Upper Continuous PostTranslate Stable Rate", ref settings.bodyIK.upperContinuousPostTranslateStableRate );
+				EditorUtil.GUI.Slider01( "Upper Continuous Spine DirY Rate", ref settings.bodyIK.upperContinuousSpineDirYLerpRate );
 
 				GUILayout.Label( "Neck", _guiStyle_section );
 				EditorUtil.GUI.Slider01( "Upper Neck To CenterLeg Rate", ref settings.bodyIK.upperNeckToCenterLegRate );
@@ -364,6 +370,8 @@ namespace SA
 			_BoneField( "Hips", ref bodyBones.hips, false );
 			_BoneField( "Spine", ref bodyBones.spine, false );
 			_BoneField( "Spine 2", ref bodyBones.spine2, true );
+			_BoneField( "Spine 3", ref bodyBones.spine3, true );
+			_BoneField( "Spine 4", ref bodyBones.spine4, true );
 
 			EditorGUILayout.Separator();
 			_Header( "Head" );

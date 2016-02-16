@@ -110,6 +110,8 @@ namespace SA
 			Hips,
 			Spine,
 			Spine2,
+			Spine3,
+			Spine4,
 			Neck,
 			Head,
 			LeftEye,
@@ -191,7 +193,7 @@ namespace SA
 
 			Max,
 			Unknown = Max,
-			SpineU = Spine2,
+			SpineU = Spine4,
 		}
 
 		public const int MaxArmRollLength = 4;
@@ -201,7 +203,7 @@ namespace SA
 		public static BoneType ToBoneType( BoneLocation boneLocation )
 		{
 			switch( boneLocation ) {
-			case BoneLocation.Hips:			return BoneType.Hips;
+			case BoneLocation.Hips:				return BoneType.Hips;
 			case BoneLocation.Neck:				return BoneType.Neck;
 			case BoneLocation.Head:				return BoneType.Head;
 			case BoneLocation.LeftEye:			return BoneType.Eye;
@@ -393,7 +395,7 @@ namespace SA
 		{
 			switch( effectorLocation ) {
 			case EffectorLocation.Root:			return EffectorType.Root;
-			case EffectorLocation.Hips:		return EffectorType.Hips;
+			case EffectorLocation.Hips:			return EffectorType.Hips;
 			case EffectorLocation.Neck:			return EffectorType.Neck;
 			case EffectorLocation.Head:			return EffectorType.Head;
 			case EffectorLocation.Eyes:			return EffectorType.Eyes;

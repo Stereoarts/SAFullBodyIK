@@ -161,7 +161,7 @@ namespace SA
 			void _PresetLocalAxis()
 			{
 				switch( _boneType ) {
-				case BoneType.Hips:		_PresetLocalAxis( _LocalAxisFrom.Child, _DirectionAs.YPlus ); return;
+				case BoneType.Hips:			_PresetLocalAxis( _LocalAxisFrom.Child, _DirectionAs.YPlus ); return;
 				case BoneType.Spine:		_PresetLocalAxis( _LocalAxisFrom.Child, _DirectionAs.YPlus ); return;
 				case BoneType.Neck:			_PresetLocalAxis( _LocalAxisFrom.Child, _DirectionAs.YPlus ); return;
 				case BoneType.Head:			_PresetLocalAxis( _LocalAxisFrom.None, _DirectionAs.None ); return;

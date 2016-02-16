@@ -20,6 +20,10 @@ namespace SA
 			public Bone hips;
 			public Bone spine;
 			public Bone spine2;
+			public Bone spine3;
+			public Bone spine4;
+
+			public Bone spineU { get { return spine4; } }
 		}
 
 		[System.Serializable]
@@ -129,6 +133,7 @@ namespace SA
 			public AutomaticBool resetTransforms = AutomaticBool.Auto;
 
 			public bool automaticPrepareHumanoid = true;
+			public bool automaticConfigureSpineEnabled = false;
 
 			public bool automaticConfigureRollEnabled = false;
 			public bool rollEnabled = false;
@@ -149,6 +154,7 @@ namespace SA
 				public float shoulderLimitAngleZ = 30.0f;
 
 				public float spineDirXLegToArmRate = 0.5f;
+				public float spineDirXLegToArmToRate = 0.9f;
 				public float spineDirYLerpRate = 0.7f;
 
 				public float upperPreTranslateRate = 0.2f;
@@ -156,8 +162,11 @@ namespace SA
 				public float upperSpineRotateRate = 0.775f;
 				public float upperPostTranslateRate = 1.0f;
 
+				public bool upperSolveHipsEnabled = true;
 				public bool upperSolveSpineEnabled = true;
 				public bool upperSolveSpine2Enabled = true;
+				public bool upperSolveSpine3Enabled = true;
+				public bool upperSolveSpine4Enabled = true;
 
 				public float upperCenterLegLerpRate = 1.0f;
 				public float upperSpineLerpRate = 1.0f;
@@ -169,6 +178,7 @@ namespace SA
 				public float upperContinuousPreTranslateStableRate = 0.65f;
 				public float upperContinuousCenterLegRotationStableRate = 0.0f;
 				public float upperContinuousPostTranslateStableRate = 0.01f;
+				public float upperContinuousSpineDirYLerpRate = 0.5f;
 
 				public float upperNeckToCenterLegRate = 0.6f;
 				public float upperNeckToSpineRate = 0.9f;
@@ -572,6 +582,21 @@ namespace SA
 			}
 		}
 
+		static bool _IsSpine( Transform trn )
+		{
+			if( trn != null ) {
+				string name = trn.name;
+				if( name.Contains( "Spine" ) || name.Contains( "spine" ) || name.Contains( "SPINE" ) ) {
+					return true;
+				}
+				if( name.Contains( "Torso" ) || name.Contains( "torso" ) || name.Contains( "TORSO" ) ) {
+					return true;
+				}
+			}
+
+			return false;
+		}
+
 		static bool _IsNeck( Transform trn )
 		{
 			if( trn != null ) {
@@ -656,7 +681,9 @@ namespace SA
 			_Prefix( ref bodyBones.hips, BoneLocation.Hips, null );
 			_Prefix( ref bodyBones.spine, BoneLocation.Spine, bodyBones.hips );
 			_Prefix( ref bodyBones.spine2, BoneLocation.Spine2, bodyBones.spine );
-			_Prefix( ref headBones.neck, BoneLocation.Neck, bodyBones.spine2 );
+			_Prefix( ref bodyBones.spine3, BoneLocation.Spine3, bodyBones.spine2 );
+			_Prefix( ref bodyBones.spine4, BoneLocation.Spine4, bodyBones.spine3 );
+			_Prefix( ref headBones.neck, BoneLocation.Neck, bodyBones.spineU );
 			_Prefix( ref headBones.head, BoneLocation.Head, headBones.neck );
 			_Prefix( ref headBones.leftEye, BoneLocation.LeftEye, headBones.head );
 			_Prefix( ref headBones.rightEye, BoneLocation.RightEye, headBones.head );
@@ -667,7 +694,7 @@ namespace SA
 				_Prefix( ref legBones.foot, (i == 0) ? BoneLocation.LeftFoot : BoneLocation.RightFoot, legBones.knee );
 
 				var armBones = (i == 0) ? leftArmBones : rightArmBones;
-				_Prefix( ref armBones.shoulder, (i == 0) ? BoneLocation.LeftShoulder : BoneLocation.RightShoulder, bodyBones.spine2 );
+				_Prefix( ref armBones.shoulder, (i == 0) ? BoneLocation.LeftShoulder : BoneLocation.RightShoulder, bodyBones.spineU );
 				_Prefix( ref armBones.arm, (i == 0) ? BoneLocation.LeftArm : BoneLocation.RightArm, armBones.shoulder );
 				_Prefix( ref armBones.elbow, (i == 0) ? BoneLocation.LeftElbow : BoneLocation.RightElbow, armBones.arm );
 				_Prefix( ref armBones.wrist, (i == 0) ? BoneLocation.LeftWrist : BoneLocation.RightWrist, armBones.elbow );
@@ -824,6 +851,8 @@ namespace SA
 					Transform hips = animator.GetBoneTransform( HumanBodyBones.Hips );
 					Transform spine = animator.GetBoneTransform( HumanBodyBones.Spine );
 					Transform spine2 = animator.GetBoneTransform( HumanBodyBones.Chest );
+					Transform spine3 = null;
+					Transform spine4 = null;
 					Transform neck = animator.GetBoneTransform( HumanBodyBones.Neck );
 					Transform head = animator.GetBoneTransform( HumanBodyBones.Head );
 					Transform leftEye = animator.GetBoneTransform( HumanBodyBones.LeftEye );
@@ -876,9 +905,33 @@ namespace SA
 						rightEye = _FindEye( head, true );
 					}
 
+					if( settings.automaticConfigureSpineEnabled ) {
+						if( spine != null && neck != null ) {
+							var spines = new List<Transform>();
+							for( Transform trn = neck.parent; trn != null && trn != spine; trn = trn.parent ) {
+								if( _IsSpine( trn ) ) {
+									spines.Insert( 0, trn );
+								}
+                            }
+
+							spines.Insert( 0, spine );
+
+							int spineMaxLength = (int)BoneLocation.SpineU - (int)BoneLocation.Spine + 1;
+							if( spines.Count > spineMaxLength ) {
+								spines.RemoveRange( spineMaxLength, spines.Count - spineMaxLength );
+							}
+
+							spine2 = (spines.Count >= 2) ? spines[1] : null;
+							spine3 = (spines.Count >= 3) ? spines[2] : null;
+							spine4 = (spines.Count >= 4) ? spines[3] : null;
+						}
+					}
+
 					_SetBoneTransform( ref bodyBones.hips, hips );
 					_SetBoneTransform( ref bodyBones.spine, spine );
 					_SetBoneTransform( ref bodyBones.spine2, spine2 );
+					_SetBoneTransform( ref bodyBones.spine3, spine3 );
+					_SetBoneTransform( ref bodyBones.spine4, spine4 );
 
 					_SetBoneTransform( ref headBones.neck, neck );
 					_SetBoneTransform( ref headBones.head, head );
