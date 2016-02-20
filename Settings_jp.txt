@@ -75,7 +75,7 @@ Arm Effector Back End Angle			... 腕の裏側と判定する終了角度
 Arm Effector Back Core Upper Angle	... 腕が裏側上方になったと判定する角度(YZ座標系基準, キャラの横側から見た場合の位置関係)
 Arm Effector Back Core Lower Angle	... 腕が裏側下方になったと判定する角度
 
-Automatic Elbow Base Angle			... (重要)ひじの自動制御の基準角度(0なら水平, 30ならやや下側)
+Automatic Elbow Base Angle			... (重要)ひじの自動制御の基準角度(0なら垂直, 30ならやや外側, -30ならやや内側)
 Automatic Elbow Lower Angle			... 腕が下側になった場合のひじの自動制御の基準角度
 Automatic Elbow Upper Angle			... 腕が上側になった場合のひじの自動制御の基準角度
 Automatic Elbow Back Upper Angle	... 腕が裏側上方になった場合のひじの自動制御の基準角度
