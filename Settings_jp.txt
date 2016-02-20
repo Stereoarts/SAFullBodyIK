@@ -1,0 +1,102 @@
+﻿
+■ Basic
+
+Animator Enabled	... Animator が有効化チェック
+
+	Auto なら自動判定。
+	Enabled の場合は、毎フレームすべての Transform が上書きされると想定し、アルゴリズムを最適化します。
+	Disabled の場合は、Transform は他からは設定されないと判定します。
+	Animator が存在しなくても、Neuron など Transform を毎フレーム設定する場合は Enabled 推奨。
+
+Reset Transfrom		... 解を求める前に強制的に姿勢を初期姿勢に戻すか
+
+	Auto または Disabled 推奨。直前のアニメーション情報など一切を無視するので注意。
+	ただ、Animator などモーションが一切有効でない場合は、Enabled にしたほうが解は安定します。
+
+Automatic Prepare Humanoid			... Mecanim(Humanoid)の場合、ボーンの設定を自動的に行う
+Automatic Configure Spine Enabled	... Spineボーンを自動セットアップするかどうか( Neuron 向け )
+Automatic Configure Roll Enabled	... 捩りボーンを自動セットアップするかどうか
+Roll Enabled		... 捩りボーンに対する変形処理を有効化するかどうか
+Model Template		... モデルテンプレート（廃止予定）
+
+□ Body IK
+
+Upper Solve Enabled				... 上半身(腕)に対する解を有効にするかどうか（デバッグ用）
+Lower Solve Enabled				... 下半身(足)に対する解を有効にするかどうか（デバッグ用）
+Compute World Transform			... Body IK の変形結果を反映するかどうか（デバッグ用）
+Upper Solve Hip Enabled			... 上半身の解の Hips ボーン対する変形を有効にするか
+Upper Solve Spine Enabled		... 上半身の解の Spine ボーン対する変形を有効にするか
+Upper Solve Spine 2 Enabled		... 上半身の解の Spine 2 ボーン対する変形を有効にするか
+Upper Solve Spine 3 Enabled		... 上半身の解の Spine 3 ボーン対する変形を有効にするか
+Upper Solve Spine 4 Enabled		... 上半身の解の Spine 4 ボーン対する変形を有効にするか
+Spine DirX Leg To Arm Rate		... 下半身～上半身に向けての X 軸の捻りレート（開始）
+Spine DirX Leg To Arm To Rate	... 下半身～上半身に向けての X 軸の捻りレート（終了）
+Spine DirY Lerp Rate			... 下半身～上半身に向けての Y 軸の捻りレート
+Upper PreTranslate Rate			... 上半身の変形前に Hips を強制移動させるレート（低め推奨）
+Upper CenterLeg Rotate Rate		... CenterLeg(Hips) の回転による変形レート
+Upper Spine Rotate Rate			... Spine すべての回転による変形レート( CenterLeg よりも高い値推奨 )
+Upper PostTranslate Rate		... 上半身の変形後に Hips を強制移動させるレート（デバッグ用、通常は1.0 推奨）
+Upper CenterLeg Lerp Rate		... CenterLeg(Hips) の回転の適用レート（デバッグ用、通常は1.0 推奨）
+Upper Spine Lerp Rate			... Spine の回転の適用レート（デバッグ用、通常は1.0 推奨）
+Spine Limit Angle X				... Spine の横方向に対する限界角度
+Spine Limit Angle Y				... Spine の前後方向に対する限界角度
+
+Continuous の付くプロパティは、ResetTransform = Disabled だった場合の特殊なオーバーレイ値。通常は反映されません。
+
+□ LimbIK
+
+Automatic Knee Base Angle		... ひざの基準角度(プラスなら内股、マイナスならガニ股）
+Presolve Knee Enabled			... ひざの位置をモーションの本来の位置をなるべく維持しようとするかどうか。
+									ただし現状は不具合も多いので、その場合はオフ推奨。
+Presolve Elbow Enabled			... ひじの位置をモーションの本来の位置をなるべく維持しようとするかどうか。
+									ただし現状は不具合も多いので、その場合はオフ推奨。
+Presolve Knee Rate				... ひざの位置補正の適用レート。
+Presolve Knee Lerp Angle		... ひざの位置補正の許容角度。この角度を超えたエフェクターは自動補正適用外となります。
+Presolve Knee Lerp Length Rate	... ひざの位置補正の許容距離（腕の長さからの比率。）
+Presolve Elbow Rate				... ひじの位置補正の適用レート。
+Presolve Elbow Lerp Angle		... ひじの位置補正の許容角度。この角度を超えたエフェクターは自動補正適用外となります。
+Presolve Elbow Lerp Length Rate	... ひじの位置補正の許容距離（足の長さからの比率。）
+Prefix Leg Effector Enabled		... 足エフェクターの事前補正有効フラグ。人体構造的に到達不可能な位置を強制補正します。
+Prefix Leg Upper Limit Angle	... 足エフェクターの事前補正の上方（足）の限界角度。
+Prefix Knee Upper Limit Angle	... 足エフェクターの事前補正の上方（ひざ）の限界角度。
+Leg Effector Min Length			... 足エフェクターの最少距離
+Leg Effector Max Length			... 足エフェクターの最大距離(曲げ方向確定のために 1 未満推奨)
+Arm Effector Max Length			... 腕エフェクターの最大距離(曲げ方向確定のために 1 未満推奨)
+
+Arm Basis Forcefix Enabled						... 腕が伸びきった場合の腕全体の角度補正有効フラグ
+Arm Basis Forcefix Effector Length Rate			... 補正の有効となる長さ
+Arm Basis Forcefix Effector Length Lerp Rate	... 補正の有効となる区間の長さ
+
+Arm Effector Back Begin Angle		... 腕の裏側と判定する開始角度(XZ座標系基準, キャラの上方から見た場合の位置関係)
+Arm Effector Back Core Begin Angle	... 腕が完全に裏側になったと判定する開始角度
+Arm Effector Back Core End Angle	... 腕が完全に裏側になったと判定する終了角度
+Arm Effector Back End Angle			... 腕の裏側と判定する終了角度
+
+Arm Effector Back Core Upper Angle	... 腕が裏側上方になったと判定する角度(YZ座標系基準, キャラの横側から見た場合の位置関係)
+Arm Effector Back Core Lower Angle	... 腕が裏側下方になったと判定する角度
+
+Automatic Elbow Base Angle			... (重要)ひじの自動制御の基準角度(0なら水平, 30ならやや下側)
+Automatic Elbow Lower Angle			... 腕が下側になった場合のひじの自動制御の基準角度
+Automatic Elbow Upper Angle			... 腕が上側になった場合のひじの自動制御の基準角度
+Automatic Elbow Back Upper Angle	... 腕が裏側上方になった場合のひじの自動制御の基準角度
+Automatic Elbow Back Lower Angle	... 腕が裏側下方になった場合のひじの自動制御の基準角度
+
+Elbow Front Inner Limit Angle		... 腕(ひじ)の前方の内側に対しての限界角度(XZ座標系基準, キャラの上方から見た場合の位置関係)
+Elbow Back Inner Limit Angle		... 腕(ひじ)の裏側の内側に対しての限界角度
+
+■ Bone
+
+Mecanim の Humanoid で、Automatic Prepare Humanoid がオンの場合は自動設定されます。
+それ以外の場合は、手動で設定する必要があります。
+
+■ Effector
+
+チェックボックス ... エフェクターの有効フラグ。現状は各 IK の有効トリガーにもなっているので注意。
+Pos		... 位置の適用レート。0 なら元の位置、1 ならエフェクターの位置を目標点とします。
+Pull	... 張力。1 に近いほど、その位置に対して強い力が働きます。（その方向に引っ張られます。）
+Rot		... 回転の適用レート。0 なら元の角度、1 ならエフェクターの角度を反映します。
+
+※ 制限
+L Foot / R Foot の Pos は常にオンにしておいてください。（LimbIK が完全キャンセルされるためおかしな動作になります。)
+見かけ上無効にしたい場合は、チェックボックスをオンにした状態で、Pos / Pull の適用レートを 0 に設定してください。
+
