@@ -532,7 +532,15 @@ namespace SA
 			public bool _SolveInternal()
 			{
 				if( !_endEffector.positionEnabled ) {
-					return false;
+					if( _limbIKType == LimbIKType.Arm ) {
+						if( !_settings.limbIK.armAlwaysSolveEnabled ) {
+							return false;
+						}
+					} else if( _limbIKType == LimbIKType.Leg ) {
+						if( !_settings.limbIK.legAlwaysSolveEnabled ) {
+							return false;
+						}
+					}
 				}
 
 				if( _beginBone.parentBone == null || !_beginBone.parentBone.transformIsAlive ) {

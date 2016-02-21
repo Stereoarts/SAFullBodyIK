@@ -139,6 +139,16 @@ namespace SA
 				value = EditorGUILayout.Toggle( name, value, options );
 			}
 
+			public static void Field( string name, ref int value, params GUILayoutOption[] options )
+			{
+				value = EditorGUILayout.IntField( name, value, options );
+			}
+
+			public static void Slider( string name, ref int value, int minValue, int maxValue, params GUILayoutOption[] options )
+			{
+				value = EditorGUILayout.IntSlider( name, value, minValue, maxValue, options );
+			}
+
 			public static void Field( string name, ref float value, params GUILayoutOption[] options )
 			{
 				value = EditorGUILayout.FloatField( name, value, options );

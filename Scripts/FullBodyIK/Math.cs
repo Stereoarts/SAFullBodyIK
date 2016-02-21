@@ -4,7 +4,7 @@
 
 #if SAFULLBODYIK_DEBUG // Currentry Debug Only
 #if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN
-#define SAFULLBODYIK_NATIVEPLUGIN
+//#define SAFULLBODYIK_NATIVEPLUGIN
 #endif
 #endif
 
@@ -562,7 +562,7 @@ namespace SA
 		public static float SAFBIKSqrt( float a )
 		{
 			CheckNaN( a );
-			if( a <= IKEpsilon ) { // Counts as 0
+			if( a <= FLOAT_EPSILON ) { // Counts as 0
 				return 0.0f;
 			}
 
@@ -572,9 +572,9 @@ namespace SA
 		public static float SAFBIKSqrtClamp01( float a )
 		{
 			CheckNaN( a );
-			if( a <= IKEpsilon ) { // Counts as 0
+			if( a <= FLOAT_EPSILON ) { // Counts as 0
 				return 0.0f;
-			} else if( a >= 1.0f - IKEpsilon ) {
+			} else if( a >= 1.0f - FLOAT_EPSILON ) {
 				return 1.0f;
 			}
 
@@ -609,10 +609,10 @@ namespace SA
 		public static float SAFBIKAcos( float cos )
 		{
 			CheckNaN( cos );
-			if( cos >= 1.0f - IKEpsilon ) {
+			if( cos >= 1.0f - FLOAT_EPSILON ) {
 				return 0.0f;
 			}
-			if( cos <= -1.0f + IKEpsilon ) {
+			if( cos <= -1.0f + FLOAT_EPSILON ) {
 				return 180.0f * Mathf.Deg2Rad;
 			}
 
@@ -622,10 +622,10 @@ namespace SA
 		public static float SAFBIKAsin( float sin )
 		{
 			CheckNaN( sin );
-			if( sin >= 1.0f - IKEpsilon ) {
+			if( sin >= 1.0f - FLOAT_EPSILON ) {
 				return 90.0f * Mathf.Deg2Rad;
 			}
-			if( sin <= -1.0f + IKEpsilon ) {
+			if( sin <= -1.0f + FLOAT_EPSILON ) {
 				return -90.0f * Mathf.Deg2Rad;
 			}
 
@@ -646,7 +646,7 @@ namespace SA
 		{
 			CheckNaN( v );
 			float sq = v.x * v.x + v.y * v.y + v.z * v.z;
-			if( sq > IKEpsilon ) {
+			if( sq > FLOAT_EPSILON ) {
 				return (float)System.Math.Sqrt( (double)sq );
 			}
 
@@ -657,7 +657,7 @@ namespace SA
 		{
 			CheckNaN( v );
 			lengthSq = v.x * v.x + v.y * v.y + v.z * v.z;
-			if( lengthSq > IKEpsilon ) {
+			if( lengthSq > FLOAT_EPSILON ) {
 				return (float)System.Math.Sqrt( (double)lengthSq );
 			}
 
@@ -672,7 +672,7 @@ namespace SA
 			float ry = lhs.y - rhs.y;
 			float rz = lhs.z - rhs.z;
 			float sq = rx * rx + ry * ry + rz * rz;
-			if( sq > IKEpsilon ) {
+			if( sq > FLOAT_EPSILON ) {
 				return (float)System.Math.Sqrt( (double)sq );
 			}
 
@@ -697,7 +697,7 @@ namespace SA
 			float ry = lhs.y - rhs.y;
 			float rz = lhs.z - rhs.z;
 			lengthSq = rx * rx + ry * ry + rz * rz;
-			if( lengthSq > IKEpsilon ) {
+			if( lengthSq > FLOAT_EPSILON ) {
 				return (float)System.Math.Sqrt( (double)lengthSq );
 			}
 
@@ -708,7 +708,7 @@ namespace SA
 		{
 			CheckNaN( v0 );
 			float sq0 = v0.x * v0.x + v0.y * v0.y + v0.z * v0.z;
-			if( sq0 > IKEpsilon ) {
+			if( sq0 > FLOAT_EPSILON ) {
 				float len0 = (float)System.Math.Sqrt( (double)sq0 );
 				if( len0 > IKEpsilon ) {
 					len0 = 1.0f / len0;
@@ -727,7 +727,7 @@ namespace SA
 		{
 			CheckNaN( v0 );
 			float sq0 = v0.x * v0.x + v0.z * v0.z;
-			if( sq0 > IKEpsilon ) {
+			if( sq0 > FLOAT_EPSILON ) {
 				float len0 = (float)System.Math.Sqrt( (double)sq0 );
 				if( len0 > IKEpsilon ) {
 					len0 = 1.0f / len0;
@@ -745,7 +745,7 @@ namespace SA
 		{
 			CheckNaN( v0 );
 			float sq0 = v0.y * v0.y + v0.z * v0.z;
-			if( sq0 > IKEpsilon ) {
+			if( sq0 > FLOAT_EPSILON ) {
 				float len0 = (float)System.Math.Sqrt( (double)sq0 );
 				if( len0 > IKEpsilon ) {
 					len0 = 1.0f / len0;
@@ -854,7 +854,7 @@ namespace SA
 			} else {
 				if( m.column0.x > m.column1.y && m.column0.x > m.column2.z ) {
 					float s = m.column0.x - m.column1.y - m.column2.z + 1.0f;
-					if( s <= IKEpsilon ) {
+					if( s <= FLOAT_EPSILON ) {
 						q = Quaternion.identity;
 						return;
 					}
@@ -868,7 +868,7 @@ namespace SA
 					CheckNaN( q );
 				} else if( m.column1.y > m.column2.z ) {
 					float s = m.column1.y - m.column0.x - m.column2.z + 1.0f;
-					if( s <= IKEpsilon ) {
+					if( s <= FLOAT_EPSILON ) {
 						q = Quaternion.identity;
 						return;
 					}
@@ -882,7 +882,7 @@ namespace SA
 					CheckNaN( q );
 				} else {
 					float s = m.column2.z - m.column0.x - m.column1.y + 1.0f;
-					if( s <= IKEpsilon ) {
+					if( s <= FLOAT_EPSILON ) {
 						q = Quaternion.identity;
 						return;
 					}
@@ -901,7 +901,7 @@ namespace SA
 		public static void SAFBIKMatSetRot( out Matrix3x3 m, ref Quaternion q )
 		{
 			float d = q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w;
-			float s = (d > Mathf.Epsilon) ? (2.0f / d) : 0.0f;
+			float s = (d > FLOAT_EPSILON) ? (2.0f / d) : 0.0f;
 			float xs = q.x * s, ys = q.y * s, zs = q.z * s;
 			float wx = q.w * xs, wy = q.w * ys, wz = q.w * zs;
 			float xx = q.x * xs, xy = q.x * ys, xz = q.x * zs;
@@ -925,7 +925,7 @@ namespace SA
 			m = new Matrix3x3();
 
 			float sin = 1.0f - cos * cos;
-			sin = (sin <= IKEpsilon) ? 0.0f : ((sin >= 1.0f - IKEpsilon) ? 1.0f : (float)System.Math.Sqrt( (float)sin ));
+			sin = (sin <= FLOAT_EPSILON) ? 0.0f : ((sin >= 1.0f - FLOAT_EPSILON) ? 1.0f : (float)System.Math.Sqrt( (float)sin ));
 
 			float axis_x_sin = axis.x * sin;
 			float axis_y_sin = axis.y * sin;
@@ -1271,7 +1271,8 @@ namespace SA
 
 		//--------------------------------------------------------------------------------------------------------------------------------------------
 
-		public const float IKEpsilon = (1e-7f);
+		public const float FLOAT_EPSILON = 1.401298e-45f;
+		public const float IKEpsilon = 1e-7f;
 		public const float IKMoveEpsilon = 1e-05f;
 		public const float IKWritebackEpsilon = 0.01f;
 

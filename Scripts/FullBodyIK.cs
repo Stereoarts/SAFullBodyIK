@@ -149,6 +149,8 @@ namespace SA
 				public bool upperSolveEnabled = true;
 				public bool computeWorldTransform = true;
 
+				public bool shoulderSolveEnabled = true;
+				public bool shoulderLimitEnabled = true;
 				public float shoulderLimitAngleYPlus = 30.0f;
 				public float shoulderLimitAngleYMinus = 1.0f;
 				public float shoulderLimitAngleZ = 30.0f;
@@ -167,10 +169,14 @@ namespace SA
 				public bool upperSolveSpine2Enabled = true;
 				public bool upperSolveSpine3Enabled = true;
 				public bool upperSolveSpine4Enabled = true;
+				public bool upperSolveAccurateSpineUEnabled = true;
+				public int upperSolveAccurateSpineIndex = 3;
 
 				public float upperCenterLegLerpRate = 1.0f;
 				public float upperSpineLerpRate = 1.0f;
 
+				public bool spineLimitEnabled = true;
+				public bool spineLimitAccurateEnabled = false;
 				public float spineLimitAngleX = 40.0f;
 				public float spineLimitAngleY = 10.0f;
 
@@ -195,10 +201,13 @@ namespace SA
 			[System.Serializable]
 			public class LimbIK
 			{
+				public bool legAlwaysSolveEnabled = true;
+				public bool armAlwaysSolveEnabled = false;
+
 				public float automaticKneeBaseAngle = 0.0f;
 
-				public bool presolveKneeEnabled = true;
-				public bool presolveElbowEnabled = true;
+				public bool presolveKneeEnabled = false;
+				public bool presolveElbowEnabled = false;
 				public float presolveKneeRate = 1.0f;
 				public float presolveKneeLerpAngle = 10.0f;
 				public float presolveKneeLerpLengthRate = 0.1f;

@@ -209,11 +209,20 @@ namespace SA
 				EditorUtil.GUI.Field( "Lower Solve Enabled", ref settings.bodyIK.lowerSolveEnabled );
 				EditorUtil.GUI.Field( "Compute World Transform", ref settings.bodyIK.computeWorldTransform );
 
+				EditorUtil.GUI.Field( "Shoulder Solve Enabled", ref settings.bodyIK.shoulderSolveEnabled );
+				EditorUtil.GUI.Field( "Shoulder Limit Enabled", ref settings.bodyIK.shoulderLimitEnabled );
+				EditorUtil.GUI.Field( "Shoulder Limit Angle YPlus", ref settings.bodyIK.shoulderLimitAngleYPlus );
+				EditorUtil.GUI.Field( "Shoulder Limit Angle YMinus", ref settings.bodyIK.shoulderLimitAngleYMinus );
+				EditorUtil.GUI.Field( "Shoulder Limit Angle Z", ref settings.bodyIK.shoulderLimitAngleZ );
+
 				EditorUtil.GUI.Field( "Upper Solve Hips Enabled", ref settings.bodyIK.upperSolveHipsEnabled );
 				EditorUtil.GUI.Field( "Upper Solve Spine Enabled", ref settings.bodyIK.upperSolveSpineEnabled );
 				EditorUtil.GUI.Field( "Upper Solve Spine 2 Enabled", ref settings.bodyIK.upperSolveSpine2Enabled );
 				EditorUtil.GUI.Field( "Upper Solve Spine 3 Enabled", ref settings.bodyIK.upperSolveSpine3Enabled );
 				EditorUtil.GUI.Field( "Upper Solve Spine 4 Enabled", ref settings.bodyIK.upperSolveSpine4Enabled );
+
+				EditorUtil.GUI.Field( "Upper Solve Accurate SpineU Enabled", ref settings.bodyIK.upperSolveAccurateSpineUEnabled );
+				EditorUtil.GUI.Slider( "Upper Solve Accurate Spine Index", ref settings.bodyIK.upperSolveAccurateSpineIndex, 0, 3 );
 
 				EditorUtil.GUI.Slider01( "Spine DirX Leg To Arm Rate", ref settings.bodyIK.spineDirXLegToArmRate );
 				EditorUtil.GUI.Slider01( "Spine DirX Leg To Arm To Rate", ref settings.bodyIK.spineDirXLegToArmToRate );
@@ -227,6 +236,8 @@ namespace SA
 				EditorUtil.GUI.Slider01( "Upper Spine Lerp Rate", ref settings.bodyIK.upperSpineLerpRate );
 
 				GUILayout.Label( "Spine", _guiStyle_section );
+				EditorUtil.GUI.Field( "Spine Limit Enabled", ref settings.bodyIK.spineLimitEnabled );
+				EditorUtil.GUI.Field( "Spine Limit Accurate Enabled", ref settings.bodyIK.spineLimitAccurateEnabled );
 				EditorUtil.GUI.Slider( "Spine Limit Angle X", ref settings.bodyIK.spineLimitAngleX, 0.0f, 89.99f );
 				EditorUtil.GUI.Slider( "Spine Limit Angle Y", ref settings.bodyIK.spineLimitAngleY, 0.0f, 89.99f );
 
@@ -252,6 +263,9 @@ namespace SA
 				EditorUtil.GUI.Slider( "Upper Eyes Back Offset Z", ref settings.bodyIK.upperEyesBackOffsetZ, 0.0f, 0.99f );
 
 				_Header( "LimbIK" );
+
+				EditorUtil.GUI.Field( "Leg Always Solve Enabled", ref settings.limbIK.legAlwaysSolveEnabled );
+				EditorUtil.GUI.Field( "Arm Always Solve Enabled", ref settings.limbIK.armAlwaysSolveEnabled );
 
 				EditorUtil.GUI.Field( "Automatic Knee Base Angle", ref settings.limbIK.automaticKneeBaseAngle );
 
