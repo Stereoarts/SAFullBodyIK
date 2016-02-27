@@ -1409,93 +1409,64 @@ namespace SA
 		[System.Serializable]
 		public struct FastLength
 		{
-			[SerializeField]
-			float _length;
-			[SerializeField]
-			float _lengthSq;
-			[SerializeField]
-			int _flags;
+			public float length;
+			public float lengthSq;
 
-			public float length
+			FastLength( float length_ )
 			{
-				get {
-					if( (_flags & 0x01) == 0 ) {
-						_flags |= 0x01;
-						if( (_flags & 0x02) != 0 ) {
-							_length = (_lengthSq > IKEpsilon) ? Mathf.Sqrt( _lengthSq ) : 0.0f;
-						}
-					}
-
-					return _length;
-				}
+				length = length_;
+				lengthSq = length_ * length_;
 			}
 
-			public float lengthSq
+			FastLength( float length_, float lengthSq_ )
 			{
-				get {
-					if( (_flags & 0x02) == 0 ) {
-						_flags |= 0x02;
-						if( (_flags & 0x01) != 0 ) {
-							_lengthSq = _length * _length;
-						}
-					}
-
-					return _lengthSq;
-				}
-			}
-
-			FastLength( float length_, float lengthSq_, int flags_ )
-			{
-				_length = length_;
-				_lengthSq = lengthSq_;
-				_flags = flags_;
-			}
-
-			public static implicit operator float( FastLength fasLength )
-			{
-				return fasLength.length;
+				length = length_;
+				lengthSq = lengthSq_;
 			}
 
 			public static FastLength FromLength( float length )
 			{
-				return new FastLength( length, 0.0f, 0x01 );
+				return new FastLength( length );
 			}
 
 			public static FastLength FromLengthSq( float lengthSq )
 			{
-				return new FastLength( 0.0f, lengthSq, 0x02 );
+				return new FastLength( SAFBIKSqrt( lengthSq ), lengthSq );
 			}
 
 			public static FastLength FromVector3( Vector3 v )
 			{
-				return FromLengthSq( v.sqrMagnitude );
+				float lengthSq;
+				float length = SAFBIKVecLengthAndLengthSq( out lengthSq, ref v );
+				return new FastLength( length, lengthSq );
 			}
 
-			public static bool operator<( FastLength a, FastLength b )
+			public static FastLength FromVector3( Vector3 v0, Vector3 v1 )
 			{
-				return a.lengthSq < b.lengthSq;
+				float lengthSq;
+				float length = SAFBIKVecLengthAndLengthSq2( out lengthSq, ref v0, ref v1 );
+				return new FastLength( length, lengthSq );
 			}
 
-			public static bool operator >( FastLength a, FastLength b )
+			public static FastLength FromVector3( ref Vector3 v )
 			{
-				return a.lengthSq > b.lengthSq;
+				float lengthSq;
+				float length = SAFBIKVecLengthAndLengthSq( out lengthSq, ref v );
+				return new FastLength( length, lengthSq );
 			}
 
-			public static bool operator<=( FastLength a, FastLength b )
+			public static FastLength FromVector3( ref Vector3 v0, ref Vector3 v1 )
 			{
-				return a.lengthSq <= b.lengthSq;
-			}
-
-			public static bool operator >=( FastLength a, FastLength b )
-			{
-				return a.lengthSq >= b.lengthSq;
+				float lengthSq;
+				float length = SAFBIKVecLengthAndLengthSq2( out lengthSq, ref v0, ref v1 );
+				return new FastLength( length, lengthSq );
 			}
 		}
 
 		[System.Serializable]
 		public struct FastAngle
 		{
-			public float angle;
+			public float angle; // Radian
 			public float cos;
 			public float sin;
 
@@ -1768,7 +1739,7 @@ namespace SA
 				return (lenB.lengthSq + lenC.lengthSq - lenA.lengthSq) / bc2;
 			}
 
-			return new FastLength();
+			return 0.0f;
 		}
 
 		// Trigonometry
@@ -1800,7 +1771,7 @@ namespace SA
 				return SAFBIKSqrtClamp01( 1.0f - cs * cs );
 			}
 
-			return new FastLength();
+			return 0.0f;
 		}
 		
 		//--------------------------------------------------------------------------------------------------------------------
@@ -2089,7 +2060,6 @@ namespace SA
 			return pos - planeDir * d;
 		}
 
-#if true // Legacy unused.
 		public static bool _FitToPlaneDir( ref Vector3 dir, Vector3 planeDir )
 		{
 			float d = Vector3.Dot( dir, planeDir );
@@ -2105,7 +2075,6 @@ namespace SA
 			dir = tmp;
 			return true;
 		}
-#endif
 
 		//--------------------------------------------------------------------------------------------------------------------
 

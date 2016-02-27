@@ -62,7 +62,7 @@ namespace SA
 			[SerializeField]
 			Transform _createdTransform = null; // Hidden, for destroy check.
 
-			// Memo: defaultPosition / defaultRotation is gave from bone.
+			// Memo: defaultPosition / defaultRotation is copied from bone.
 			[SerializeField]
 			public Vector3 _defaultPosition = Vector3.zero;
 			[SerializeField]
@@ -253,62 +253,8 @@ namespace SA
 				Assert( fullBodyIK != null );
 
 				_ClearInternal();
-				
-				if( _parentEffector != null ) {
-					_defaultRotation = _parentEffector._defaultRotation;
-				}
-				
-				if( _effectorType == EffectorType.Root ) {
-					_defaultPosition = fullBodyIK.internalValues.defaultRootPosition;
-					_defaultRotation = fullBodyIK.internalValues.defaultRootRotation;
-				} else if( _effectorType == EffectorType.HandFinger ) {
-					Assert( _bone != null );
-					if( _bone != null ) {
-						if( _bone.transformIsAlive ) {
-							_defaultPosition = bone._defaultPosition;
-						} else { // Failsafe. Simulate finger tips.
-								 // Memo: If transformIsAlive == false, _parentBone is null.
-							Assert( _bone.parentBoneLocationBased != null && _bone.parentBoneLocationBased.parentBoneLocationBased != null );
-							if( _bone.parentBoneLocationBased != null && _bone.parentBoneLocationBased.parentBoneLocationBased != null ) {
-								Vector3 tipTranslate = (bone.parentBoneLocationBased._defaultPosition - bone.parentBoneLocationBased.parentBoneLocationBased._defaultPosition);
-								_defaultPosition = bone.parentBoneLocationBased._defaultPosition + tipTranslate;
-								_isSimulateFingerTips = true;
-                            }
-						}
-					}
-				} else if( _effectorType == EffectorType.Eyes ) {
-					Assert( _bone != null );
-					bool isLegacy = (fullBodyIK.settings.modelTemplate == ModelTemplate.UnityChan);
-					if( !isLegacy && _bone != null && _bone.transformIsAlive &&
-                        _leftBone != null && _leftBone.transformIsAlive &&
-                        _rightBone != null && _rightBone.transformIsAlive ) {
-						// _bone ... Head / _leftBone ... LeftEye / _rightBone ... RightEye
-						_defaultPosition = (_leftBone._defaultPosition + _rightBone._defaultPosition) * 0.5f;
-					} else if ( _bone != null && _bone.transformIsAlive ) {
-						_defaultPosition = _bone._defaultPosition;
-						// _bone ... Head / _bone.parentBone ... Neck
-						if( _bone.parentBone != null && _bone.parentBone.transformIsAlive && _bone.parentBone.boneType == BoneType.Neck ) {
-							Vector3 neckToHead = _bone._defaultPosition - _bone.parentBone._defaultPosition;
-							float neckToHeadY = (neckToHead.y > 0.0f) ? neckToHead.y : 0.0f;
-                            _defaultPosition += fullBodyIK.internalValues.defaultRootBasis.column1 * neckToHeadY;
-							_defaultPosition += fullBodyIK.internalValues.defaultRootBasis.column2 * neckToHeadY;
-						}
-					}
-				} else if( _effectorType == EffectorType.Hips ) {
-					Assert( _bone != null && _leftBone != null && _rightBone != null );
-					if( _bone != null && _leftBone != null && _rightBone != null ) {
-						// _bone ... Hips / _leftBone ... LeftLeg / _rightBone ... RightLeg
-						_defaultPosition = (_leftBone._defaultPosition + _rightBone._defaultPosition) * 0.5f;
-					}
-				} else { // Normally case.
-					Assert( _bone != null );
-					if( _bone != null ) {
-						_defaultPosition = bone._defaultPosition;
-						if( !_defaultLocalBasisIsIdentity ) { // For wrist & foot.
-							_defaultRotation = bone._localAxisRotation;
-                        }
-					}
-				}
+
+				_ComputeDefaultTransform( fullBodyIK );
 				
 				// Reset transform.
 				if( this.transformIsAlive ) {
@@ -331,6 +277,65 @@ namespace SA
 				_worldRotation = _defaultRotation;
 				if( _effectorType == EffectorType.Eyes ) {
 					_worldPosition += fullBodyIK.internalValues.defaultRootBasis.column2 * Eyes_DefaultDistance;
+				}
+			}
+
+			public void _ComputeDefaultTransform( FullBodyIK fullBodyIK )
+			{
+				if( _parentEffector != null ) {
+					_defaultRotation = _parentEffector._defaultRotation;
+				}
+
+				if( _effectorType == EffectorType.Root ) {
+					_defaultPosition = fullBodyIK.internalValues.defaultRootPosition;
+					_defaultRotation = fullBodyIK.internalValues.defaultRootRotation;
+				} else if( _effectorType == EffectorType.HandFinger ) {
+					Assert( _bone != null );
+					if( _bone != null ) {
+						if( _bone.transformIsAlive ) {
+							_defaultPosition = bone._defaultPosition;
+						} else { // Failsafe. Simulate finger tips.
+								 // Memo: If transformIsAlive == false, _parentBone is null.
+							Assert( _bone.parentBoneLocationBased != null && _bone.parentBoneLocationBased.parentBoneLocationBased != null );
+							if( _bone.parentBoneLocationBased != null && _bone.parentBoneLocationBased.parentBoneLocationBased != null ) {
+								Vector3 tipTranslate = (bone.parentBoneLocationBased._defaultPosition - bone.parentBoneLocationBased.parentBoneLocationBased._defaultPosition);
+								_defaultPosition = bone.parentBoneLocationBased._defaultPosition + tipTranslate;
+								_isSimulateFingerTips = true;
+							}
+						}
+					}
+				} else if( _effectorType == EffectorType.Eyes ) {
+					Assert( _bone != null );
+					bool isLegacy = (fullBodyIK.settings.modelTemplate == ModelTemplate.UnityChan);
+					if( !isLegacy && _bone != null && _bone.transformIsAlive &&
+						_leftBone != null && _leftBone.transformIsAlive &&
+						_rightBone != null && _rightBone.transformIsAlive ) {
+						// _bone ... Head / _leftBone ... LeftEye / _rightBone ... RightEye
+						_defaultPosition = (_leftBone._defaultPosition + _rightBone._defaultPosition) * 0.5f;
+					} else if( _bone != null && _bone.transformIsAlive ) {
+						_defaultPosition = _bone._defaultPosition;
+						// _bone ... Head / _bone.parentBone ... Neck
+						if( _bone.parentBone != null && _bone.parentBone.transformIsAlive && _bone.parentBone.boneType == BoneType.Neck ) {
+							Vector3 neckToHead = _bone._defaultPosition - _bone.parentBone._defaultPosition;
+							float neckToHeadY = (neckToHead.y > 0.0f) ? neckToHead.y : 0.0f;
+							_defaultPosition += fullBodyIK.internalValues.defaultRootBasis.column1 * neckToHeadY;
+							_defaultPosition += fullBodyIK.internalValues.defaultRootBasis.column2 * neckToHeadY;
+						}
+					}
+				} else if( _effectorType == EffectorType.Hips ) {
+					Assert( _bone != null && _leftBone != null && _rightBone != null );
+					if( _bone != null && _leftBone != null && _rightBone != null ) {
+						// _bone ... Hips / _leftBone ... LeftLeg / _rightBone ... RightLeg
+						_defaultPosition = (_leftBone._defaultPosition + _rightBone._defaultPosition) * 0.5f;
+					}
+				} else { // Normally case.
+					Assert( _bone != null );
+					if( _bone != null ) {
+						_defaultPosition = bone._defaultPosition;
+						if( !_defaultLocalBasisIsIdentity ) { // For wrist & foot.
+							_defaultRotation = bone._localAxisRotation;
+						}
+					}
 				}
 			}
 

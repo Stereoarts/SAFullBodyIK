@@ -65,10 +65,13 @@ namespace SA
 			public Bone parentBoneLocationBased { get { return _parentBoneLocationBased; } }
 
 			// Internal values. Acepted public accessing. Because faster than property methods.
-			// Memo: defaultPosition / defaultRotation is gave from transform.
+			// Memo: defaultPosition / defaultRotation is copied from transform.
 			public Vector3 _defaultPosition = Vector3.zero;				// transform.position
 			public Quaternion _defaultRotation = Quaternion.identity;   // transform.rotation
 			public Matrix3x3 _defaultBasis = Matrix3x3.identity;
+			public Vector3 _defaultLocalTranslate = Vector3.zero;       // transform.position - transform.parent.position
+			public Vector3 _defaultLocalDirection = Vector3.zero;       // _defaultLocalTranslate.Normalize()
+			public FastLength _defaultLocalLength = new FastLength();	// _defaultLocalTranslate.magnitude
 
 			// Internal values. Acepted public accessing. Because faster than property methods.
 			// Memo: These values are modified in Prepare().
@@ -270,6 +273,16 @@ namespace SA
 					_defaultPosition = this.transform.position;
 					_defaultRotation = this.transform.rotation;
 					SAFBIKMatSetRot( out _defaultBasis, ref _defaultRotation );
+					if( _parentBone != null ) { // Always _parentBone.transformIsAlive == true
+						_defaultLocalTranslate = _defaultPosition - _parentBone._defaultPosition;
+						_defaultLocalLength = FastLength.FromVector3( ref _defaultLocalTranslate );
+						if( _defaultLocalLength.length > FLOAT_EPSILON ) {
+							float lengthInv = (1.0f / _defaultLocalLength.length);
+							_defaultLocalDirection.x = _defaultLocalTranslate.x * lengthInv;
+							_defaultLocalDirection.y = _defaultLocalTranslate.y * lengthInv;
+							_defaultLocalDirection.z = _defaultLocalTranslate.z * lengthInv;
+						}
+					}
 
 					SAFBIKMatMultInv0( out _worldToBaseBasis, ref _defaultBasis, ref fullBodyIK.internalValues.defaultRootBasis );
 					_baseToWorldBasis = _worldToBaseBasis.transpose;
@@ -279,6 +292,9 @@ namespace SA
 					_defaultPosition = Vector3.zero;
 					_defaultRotation = Quaternion.identity;
 					_defaultBasis = Matrix3x3.identity;
+					_defaultLocalTranslate = Vector3.zero;
+					_defaultLocalLength = new FastLength();
+					_defaultLocalDirection = Vector3.zero;
 
 					_worldToBaseBasis = Matrix3x3.identity;
 					_baseToWorldBasis = Matrix3x3.identity;
@@ -290,19 +306,20 @@ namespace SA
 				if( this.transformIsAlive && (_parentBone != null && _parentBone.transformIsAlive) ) {
 					if( _localAxisFrom == _LocalAxisFrom.Parent ||
 						_parentBone._localAxisFrom == _LocalAxisFrom.Child ) {
-						Vector3 dir = _defaultPosition - _parentBone._defaultPosition;
-						if( SAFBIKVecNormalize( ref dir ) ) {
+						Vector3 dir = _defaultLocalDirection;
+						if( dir.x != 0.0f || dir.y != 0.0f || dir.z != 0.0f ) {
 							if( _localAxisFrom == _LocalAxisFrom.Parent ) {
 								SAFBIKComputeBasisFrom( out _localAxisBasis, ref fullBodyIK.internalValues.defaultRootBasis, ref dir, _localDirectionAs );
 							}
 
 							if( _parentBone._localAxisFrom == _LocalAxisFrom.Child ) {
 								if( _parentBone._boneType == BoneType.Shoulder ) {
-									if( _parentBone._parentBone != null ) { // Using spine / arm axis for shoulder. Preprocess for BodyIK.
+									Bone neckBone = (fullBodyIK.headBones != null) ? fullBodyIK.headBones.neck : null;
+									if( neckBone != null && neckBone.transformIsAlive ) { // Using spine / arm axis for shoulder. Preprocess for BodyIK.
 										Bone shoulderBone = _parentBone;
 										Bone spineBone = _parentBone._parentBone;
-										Vector3 xDir = (_parentBone._localDirectionAs == _DirectionAs.XMinus) ? -dir : dir;
-										Vector3 yDir = shoulderBone._defaultPosition - spineBone._defaultPosition;
+                                        Vector3 xDir = (_parentBone._localDirectionAs == _DirectionAs.XMinus) ? -dir : dir;
+										Vector3 yDir = neckBone._defaultPosition - shoulderBone._defaultPosition;
 										Vector3 zDir = Vector3.Cross( xDir, yDir );
 										yDir = Vector3.Cross( zDir, xDir );
 										if( SAFBIKVecNormalize2( ref yDir, ref zDir ) ) {
@@ -372,6 +389,37 @@ namespace SA
 				_isReadWorldRotation = false;
 				_isWrittenWorldPosition = false;
 				_isWrittenWorldRotation = false;
+			}
+
+			public void SyncDisplacement()
+			{
+				if( _parentBone != null && _parentBone.transformIsAlive && transformIsAlive ) {
+					Vector3 translate = this.worldPosition - _parentBone.worldPosition;
+					_defaultLocalLength = FastLength.FromVector3( ref translate );
+					if( _parentBone.transform == this.transform.parent ) {
+						Vector3 localPosition = this.transform.localPosition;
+						if( SAFBIKVecNormalize( ref localPosition ) ) {
+							Vector3 tempDirection;
+							SAFBIKMatMultVec( out tempDirection, ref _parentBone._defaultBasis, ref localPosition );
+							_defaultLocalDirection = tempDirection;
+							_defaultLocalTranslate = tempDirection * _defaultLocalLength.length;
+						} else {
+							_defaultLocalDirection = Vector3.zero;
+							_defaultLocalTranslate = Vector3.zero;
+                        }
+					} else {
+						_defaultLocalTranslate = _defaultLocalDirection * _defaultLocalLength.length;
+					}
+				}
+			}
+
+			public void PostSyncDisplacement( BoneCaches boneCache )
+			{
+				if( _boneLocation == BoneLocation.Hips ) {
+					_defaultPosition = boneCache.defaultHipsPosition + boneCache.hipsOffset;
+				} else if( _parentBone != null ) {
+					_defaultPosition = _parentBone._defaultPosition + _defaultLocalTranslate;
+				}
 			}
 
 			public Vector3 worldPosition {

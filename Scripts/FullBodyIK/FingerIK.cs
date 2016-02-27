@@ -76,6 +76,7 @@ namespace SA
 			}
 
 			FingerIKType _fingerIKType;
+			Settings _settings;
 			InternalValues _internalValues;
 
 			Bone _parentBone; // wrist/leg
@@ -97,6 +98,7 @@ namespace SA
 			public FingerIK( FullBodyIK fullBodyIK, FingerIKType fingerIKType )
 			{
 				_fingerIKType = fingerIKType;
+				_settings = fullBodyIK.settings;
 				_internalValues = fullBodyIK.internalValues;
 
 				FingersBones fingerBones = null;
@@ -148,7 +150,7 @@ namespace SA
 						}
 					}
 
-					for( int fingerType = 0; fingerType < (int)FingerType.Max; ++fingerType ) {
+					for( int fingerType = 0; fingerType != (int)FingerType.Max; ++fingerType ) {
 						_PrepareBranch2( fingerType );
 					}
 
@@ -199,19 +201,9 @@ namespace SA
 					fingerBranch.fingerLinks[linkID] = fingerLink;
 				}
 
-				Vector3 dirX = effector.defaultPosition - fingerBranch.fingerLinks[0].bone._defaultPosition;
-				dirX = isRight ? dirX : -dirX;
-				if( SAFBIKVecNormalize( ref dirX ) && SAFBIKComputeBasisFromXZLockX( out fingerBranch.boneToSolvedBasis, dirX, _internalValues.defaultRootBasis.column2 ) ) {
-					fingerBranch.solvedToBoneBasis = fingerBranch.boneToSolvedBasis.transpose;
-				}
-
-				if( fingerBranch.fingerLinks[0].bone != null ) {
-					fingerBranch.link0ToEffectorLength = SAFBIKVecLengthAndLengthSq2(
-						out fingerBranch.link0ToEffectorLengthSq,
-						ref effector._defaultPosition, ref fingerBranch.fingerLinks[0].bone._defaultPosition );
-				}
-
 				_fingerBranches[fingerType] = fingerBranch;
+
+				_PrepareBranchInternal( fingerType );
 
 				if( fingerType == (int)FingerType.Thumb ) {
 					_thumbBranch = new _ThumbBranch();
@@ -219,6 +211,31 @@ namespace SA
 					for( int i = 0; i != boneLength; ++i ) {
 						_thumbBranch.thumbLinks[i] = new _ThumbLink();
 					}
+				}
+			}
+
+			// for Prepare, SyncDisplacement.
+			void _PrepareBranchInternal( int fingerType )
+			{
+				Assert( _internalValues != null && _fingerBranches != null );
+				_FingerBranch fingerBranch = _fingerBranches[fingerType];
+				if( fingerBranch == null || fingerBranch.effector == null ) {
+					return;
+				}
+
+				var effector = fingerBranch.effector;
+				bool isRight = (_fingerIKType == FingerIKType.RightWrist);
+
+				if( fingerBranch.fingerLinks != null && fingerBranch.fingerLinks.Length > 0 && fingerBranch.fingerLinks[0].bone != null ) {
+					Vector3 dirX = effector.defaultPosition - fingerBranch.fingerLinks[0].bone._defaultPosition;
+					dirX = isRight ? dirX : -dirX;
+					if( SAFBIKVecNormalize( ref dirX ) && SAFBIKComputeBasisFromXZLockX( out fingerBranch.boneToSolvedBasis, dirX, _internalValues.defaultRootBasis.column2 ) ) {
+						fingerBranch.solvedToBoneBasis = fingerBranch.boneToSolvedBasis.transpose;
+					}
+
+					fingerBranch.link0ToEffectorLength = SAFBIKVecLengthAndLengthSq2(
+						out fingerBranch.link0ToEffectorLengthSq,
+						ref effector._defaultPosition, ref fingerBranch.fingerLinks[0].bone._defaultPosition );
 				}
 			}
 
@@ -251,6 +268,7 @@ namespace SA
 				return false;
 			}
 
+			// for Prepare, SyncDisplacement.
 			void _PrepareBranch2( int fingerType )
 			{
 				_FingerBranch fingerBranch = _fingerBranches[fingerType];
@@ -334,9 +352,8 @@ namespace SA
 
 						if( !isSolved ) {
 							_thumbBranch.thumbSolveZ = new Vector3( 0.0f, 1.0f, 2.0f );
-							SAFBIKVecNormalize( ref _thumbBranch.thumbSolveZ );
 							_thumbBranch.thumbSolveY = new Vector3( 0.0f, 2.0f, -1.0f );
-							SAFBIKVecNormalize( ref _thumbBranch.thumbSolveY );
+							SAFBIKVecNormalize2( ref _thumbBranch.thumbSolveZ, ref _thumbBranch.thumbSolveY );
 						}
 					}
 				}
@@ -345,22 +362,37 @@ namespace SA
 					_FingerLink fingerLink = fingerBranch.fingerLinks[n];
 
 					Vector3 sourcePosition = fingerLink.bone._defaultPosition;
-					Vector3 destPosition = Vector3.zero;
+					Vector3 destPosition;
+					FastLength sourceToDestLength;
+					Vector3 sourceToDestDirection;
 					if( n + 1 != fingerBranch.fingerLinks.Length ) {
 						destPosition = fingerBranch.fingerLinks[n + 1].bone._defaultPosition;
+						sourceToDestLength = fingerBranch.fingerLinks[n + 1].bone._defaultLocalLength;
+						sourceToDestDirection = fingerBranch.fingerLinks[n + 1].bone._defaultLocalDirection;
 					} else {
 						destPosition = fingerBranch.effector._defaultPosition;
+						if( !fingerBranch.effector._isSimulateFingerTips ) {
+							sourceToDestLength = fingerBranch.effector.bone._defaultLocalLength;
+							sourceToDestDirection = fingerBranch.effector.bone._defaultLocalDirection;
+						} else {
+							Vector3 tempTranslate = destPosition - sourcePosition;
+                            sourceToDestLength = FastLength.FromVector3( ref tempTranslate );
+							if( sourceToDestLength.length > FLOAT_EPSILON ) {
+								sourceToDestDirection = tempTranslate * (1.0f / sourceToDestLength.length);
+                            } else {
+								sourceToDestDirection = Vector3.zero;
+                            }
+                        }
 					}
 
 					if( fingerType != (int)FingerType.Thumb ) {
-						fingerLink.childToLength = SAFBIKVecLengthAndLengthSq2(
-							out fingerLink.childToLengthSq,
-							ref destPosition, ref sourcePosition );
+						fingerLink.childToLength = sourceToDestLength.length;
+						fingerLink.childToLengthSq = sourceToDestLength.lengthSq;
 					}
 
 					{
-						Vector3 dirX = destPosition - sourcePosition;
-						if( SAFBIKVecNormalize( ref dirX ) ) {
+						Vector3 dirX = sourceToDestDirection;
+						if( dirX.x != 0.0f || dirX.y != 0.0f || dirX.z != 0.0f ) {
 							dirX = isRight ? dirX : -dirX;
 							if( SAFBIKComputeBasisFromXZLockX( out fingerLink.boneToSolvedBasis, dirX, _internalValues.defaultRootBasis.column2 ) ) {
 								fingerLink.solvedToBoneBasis = fingerLink.boneToSolvedBasis.transpose;
@@ -432,6 +464,7 @@ namespace SA
 				}
 			}
 
+			// for Prepare, SyncDisplacement.
 			void _PrepareThumb()
 			{
 				_FingerBranch fingerBranch = _fingerBranches[(int)FingerType.Thumb];
@@ -480,6 +513,24 @@ namespace SA
 					_thumbBranch.linkLength2to3Sq );
 
 				_thumbBranch.thumb1_Acos_baseThetaAtoB = SAFBIKAcos( _thumbBranch.thumb1_baseThetaAtoB );
+			}
+
+			bool _isSyncDisplacementAtLeastOnce;
+
+			void _SyncDisplacement()
+			{
+				if( _settings.syncDisplacement != SyncDisplacement.Disable ) {
+					if( _settings.syncDisplacement == SyncDisplacement.Everyframe || !_isSyncDisplacementAtLeastOnce ) {
+						_isSyncDisplacementAtLeastOnce = true;
+
+						for( int fingerType = 0; fingerType != (int)FingerType.Max; ++fingerType ) {
+							_PrepareBranchInternal( fingerType );
+							_PrepareBranch2( fingerType );
+						}
+
+						_PrepareThumb();
+                    }
+				}
 			}
 
 			//------------------------------------------------------------------------------------------------------------------------------------------------
@@ -686,6 +737,8 @@ namespace SA
 				if( _parentBone == null ) {
 					return false;
 				}
+
+				_SyncDisplacement();
 
 				bool isSolved = false;
 

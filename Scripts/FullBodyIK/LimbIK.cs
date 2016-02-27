@@ -38,8 +38,6 @@ namespace SA
 			float _beginToBendingLengthSq;
 			float _bendingToEndLength;
 			float _bendingToEndLengthSq;
-			float _beginToEndLength;
-			float _beginToEndLengthSq;
 			Matrix3x3 _solvedToBeginBoneBasis = Matrix3x3.identity;
 			Matrix3x3 _beginBoneToSolvedBasis = Matrix3x3.identity;
 			Matrix3x3 _solvedToBendingBoneBasis = Matrix3x3.identity;
@@ -110,62 +108,13 @@ namespace SA
 
 			void _Prepare( FullBodyIK fullBodyIK )
 			{
-				_beginToBendingLength = SAFBIKVecLengthAndLengthSq2( out _beginToBendingLengthSq,
-					ref _bendingBone._defaultPosition, ref _beginBone._defaultPosition );
-				_bendingToEndLength = SAFBIKVecLengthAndLengthSq2( out _bendingToEndLengthSq,
-					ref _endBone._defaultPosition, ref _bendingBone._defaultPosition );
-				_beginToEndLength = SAFBIKVecLengthAndLengthSq2( out _beginToEndLengthSq,
-					ref _endBone._defaultPosition, ref _beginBone._defaultPosition );
-
-				Vector3 beginToEndDir = _endBone._defaultPosition - _beginBone._defaultPosition;
-				if( SAFBIKVecNormalize( ref beginToEndDir ) ) {
-					if( _limbIKType == LimbIKType.Arm ) {
-						if( _limbIKSide == Side.Left ) {
-							beginToEndDir = -beginToEndDir;
-						}
-						Vector3 dirY = _internalValues.defaultRootBasis.column1;
-						Vector3 dirZ = _internalValues.defaultRootBasis.column2;
-						if( SAFBIKComputeBasisLockX( out _effectorToBeginBoneBasis, ref beginToEndDir, ref dirY, ref dirZ ) ) {
-                            _effectorToBeginBoneBasis = _effectorToBeginBoneBasis.transpose;
-						}
-					} else {
-						beginToEndDir = -beginToEndDir;
-						Vector3 dirX = _internalValues.defaultRootBasis.column0;
-						Vector3 dirZ = _internalValues.defaultRootBasis.column2;
-						// beginToEffectorBasis( identity to effectorDir(y) )
-						if( SAFBIKComputeBasisLockY( out _effectorToBeginBoneBasis, ref dirX, ref beginToEndDir, ref dirZ ) ) {
-							// effectorToBeginBasis( effectorDir(y) to identity )
-							_effectorToBeginBoneBasis = _effectorToBeginBoneBasis.transpose;
-						}
-					}
-
-					// effectorToBeginBasis( effectorDir(y) to _beginBone._localAxisBasis )
-					SAFBIKMatMultRet0( ref _effectorToBeginBoneBasis, ref _beginBone._localAxisBasis );
-				}
-
-				_defaultCosTheta = ComputeCosTheta(
-					_bendingToEndLengthSq,			// lenASq
-					_beginToEndLengthSq,			// lenBSq
-					_beginToBendingLengthSq,		// lenCSq
-					_beginToEndLength,				// lenB
-					_beginToBendingLength );		// lenC
-
-				_defaultSinTheta = SAFBIKSqrtClamp01( 1.0f - _defaultCosTheta * _defaultCosTheta );
-				CheckNaN( _defaultSinTheta );
-
 				_beginBoneToSolvedBasis = _beginBone._localAxisBasis;
 				_solvedToBeginBoneBasis = _beginBone._localAxisBasisInv;
 				_solvedToBendingBoneBasis = _bendingBone._localAxisBasisInv;
 
-				_beginToEndMaxLength = _beginToBendingLength + _bendingToEndLength;
 				_endEffectorToWorldRotation = Inverse( _endEffector.defaultRotation ) * _endBone._defaultRotation;
 
 				SAFBIKMatMult( out _beginToBendingBoneBasis, ref _beginBone._localAxisBasisInv, ref _bendingBone._localAxisBasis );
-
-				if( _limbIKType == LimbIKType.Leg ) {
-					_leg_upperLimitNearCircleZ = 0.0f;
-					_leg_upperLimitNearCircleY = _beginToEndMaxLength;
-				}
 
 				if( _armRollBones != null ) {
 					if( _beginBone != null && _bendingBone != null ) {
@@ -178,6 +127,75 @@ namespace SA
 					if( _endBone != null && _bendingBone != null ) {
 						SAFBIKMatMultGetRot( out _arm_endWorldToBendingBoneRotation, ref _endBone._worldToBaseBasis, ref _bendingBone._baseToBoneBasis );
                     }
+				}
+
+				// for _defaultCosTheta, _defaultSinTheta
+
+				_beginToBendingLength = _bendingBone._defaultLocalLength.length;
+				_beginToBendingLengthSq = _bendingBone._defaultLocalLength.lengthSq;
+				_bendingToEndLength = _endBone._defaultLocalLength.length;
+				_bendingToEndLengthSq = _endBone._defaultLocalLength.lengthSq;
+
+				float beginToEndLength, beginToEndLengthSq;
+				beginToEndLength = SAFBIKVecLengthAndLengthSq2( out beginToEndLengthSq,
+					ref _endBone._defaultPosition, ref _beginBone._defaultPosition );
+
+				_defaultCosTheta = ComputeCosTheta(
+					_bendingToEndLengthSq,          // lenASq
+					beginToEndLengthSq,             // lenBSq
+					_beginToBendingLengthSq,        // lenCSq
+					beginToEndLength,               // lenB
+					_beginToBendingLength );        // lenC
+
+				_defaultSinTheta = SAFBIKSqrtClamp01( 1.0f - _defaultCosTheta * _defaultCosTheta );
+				CheckNaN( _defaultSinTheta );
+			}
+
+			bool _isSyncDisplacementAtLeastOnce;
+
+			void _SyncDisplacement()
+			{
+				// Measure bone length.(Using worldPosition)
+				// Force execution on 1st time. (Ignore case _settings.syncDisplacement == SyncDisplacement.Disable)
+				if( _settings.syncDisplacement == SyncDisplacement.Everyframe || !_isSyncDisplacementAtLeastOnce ) {
+					_isSyncDisplacementAtLeastOnce = true;
+
+					_beginToBendingLength	= _bendingBone._defaultLocalLength.length;
+					_beginToBendingLengthSq	= _bendingBone._defaultLocalLength.lengthSq;
+					_bendingToEndLength		= _endBone._defaultLocalLength.length;
+					_bendingToEndLengthSq	= _endBone._defaultLocalLength.lengthSq;
+					_beginToEndMaxLength	= _beginToBendingLength + _bendingToEndLength;
+
+					Vector3 beginToEndDir = _endBone._defaultPosition - _beginBone._defaultPosition;
+					if( SAFBIKVecNormalize( ref beginToEndDir ) ) {
+						if( _limbIKType == LimbIKType.Arm ) {
+							if( _limbIKSide == Side.Left ) {
+								beginToEndDir = -beginToEndDir;
+							}
+							Vector3 dirY = _internalValues.defaultRootBasis.column1;
+							Vector3 dirZ = _internalValues.defaultRootBasis.column2;
+							if( SAFBIKComputeBasisLockX( out _effectorToBeginBoneBasis, ref beginToEndDir, ref dirY, ref dirZ ) ) {
+								_effectorToBeginBoneBasis = _effectorToBeginBoneBasis.transpose;
+							}
+						} else {
+							beginToEndDir = -beginToEndDir;
+							Vector3 dirX = _internalValues.defaultRootBasis.column0;
+							Vector3 dirZ = _internalValues.defaultRootBasis.column2;
+							// beginToEffectorBasis( identity to effectorDir(y) )
+							if( SAFBIKComputeBasisLockY( out _effectorToBeginBoneBasis, ref dirX, ref beginToEndDir, ref dirZ ) ) {
+								// effectorToBeginBasis( effectorDir(y) to identity )
+								_effectorToBeginBoneBasis = _effectorToBeginBoneBasis.transpose;
+							}
+						}
+
+						// effectorToBeginBasis( effectorDir(y) to _beginBone._localAxisBasis )
+						SAFBIKMatMultRet0( ref _effectorToBeginBoneBasis, ref _beginBone._localAxisBasis );
+					}
+
+					if( _limbIKType == LimbIKType.Leg ) {
+						_leg_upperLimitNearCircleZ = 0.0f;
+						_leg_upperLimitNearCircleY = _beginToEndMaxLength;
+					}
 				}
 			}
 
@@ -274,6 +292,8 @@ namespace SA
 
 			public void PresolveBeinding()
 			{
+				_SyncDisplacement();
+
 				bool presolvedEnabled = (_limbIKType == LimbIKType.Leg) ? _settings.limbIK.presolveKneeEnabled : _settings.limbIK.presolveElbowEnabled;
 				if( !presolvedEnabled ) {
 					return;
@@ -520,6 +540,7 @@ namespace SA
 			public bool Solve()
 			{
 				_UpdateArgs();
+
 				_arm_isSolvedLimbIK = false;
 
 				bool r = _SolveInternal();

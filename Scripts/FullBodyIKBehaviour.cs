@@ -32,7 +32,6 @@ namespace SA
 				return;
 			}
 #endif
-
 			if( _fullBodyIK == null ) {
 				_fullBodyIK = new FullBodyIK();
 			}

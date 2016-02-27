@@ -197,11 +197,14 @@ namespace SA
 			if( editorSettings.isAdvanced ) {
 				settings.animatorEnabled = (FullBodyIK.AutomaticBool)EditorGUILayout.EnumPopup( "Animator Enabled", settings.animatorEnabled );
 				settings.resetTransforms = (FullBodyIK.AutomaticBool)EditorGUILayout.EnumPopup( "Reset Transforms", settings.resetTransforms );
+				settings.syncDisplacement = (FullBodyIK.SyncDisplacement)EditorGUILayout.EnumPopup( "Sync Displcement", settings.syncDisplacement );
+
 				EditorUtil.GUI.Field( "Automatic Prepare Humanoid", ref settings.automaticPrepareHumanoid );
 				EditorUtil.GUI.Field( "Automatic Configure Spine Enabled", ref settings.automaticConfigureSpineEnabled );
 				EditorUtil.GUI.Field( "Automatic Configure Roll Enabled", ref settings.automaticConfigureRollEnabled );
 				EditorUtil.GUI.Field( "Roll Enabled", ref settings.rollEnabled );
-				settings.modelTemplate = (FullBodyIK.ModelTemplate)EditorGUILayout.EnumPopup( "Model Template", settings.modelTemplate );
+				
+                settings.modelTemplate = (FullBodyIK.ModelTemplate)EditorGUILayout.EnumPopup( "Model Template", settings.modelTemplate );
 
 				_Header( "BodyIK" );
 
@@ -220,9 +223,6 @@ namespace SA
 				EditorUtil.GUI.Field( "Upper Solve Spine 2 Enabled", ref settings.bodyIK.upperSolveSpine2Enabled );
 				EditorUtil.GUI.Field( "Upper Solve Spine 3 Enabled", ref settings.bodyIK.upperSolveSpine3Enabled );
 				EditorUtil.GUI.Field( "Upper Solve Spine 4 Enabled", ref settings.bodyIK.upperSolveSpine4Enabled );
-
-				EditorUtil.GUI.Field( "Upper Solve Accurate SpineU Enabled", ref settings.bodyIK.upperSolveAccurateSpineUEnabled );
-				EditorUtil.GUI.Slider( "Upper Solve Accurate Spine Index", ref settings.bodyIK.upperSolveAccurateSpineIndex, 0, 3 );
 
 				EditorUtil.GUI.Slider01( "Spine DirX Leg To Arm Rate", ref settings.bodyIK.spineDirXLegToArmRate );
 				EditorUtil.GUI.Slider01( "Spine DirX Leg To Arm To Rate", ref settings.bodyIK.spineDirXLegToArmToRate );

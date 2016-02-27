@@ -126,11 +126,19 @@ namespace SA
 			Enable = 1,
 		}
 
+		public enum SyncDisplacement
+		{
+			Disable,
+			Firstframe,
+			Everyframe,
+		}
+
 		[System.Serializable]
 		public class Settings
 		{
 			public AutomaticBool animatorEnabled = AutomaticBool.Auto;
 			public AutomaticBool resetTransforms = AutomaticBool.Auto;
+			public SyncDisplacement syncDisplacement = SyncDisplacement.Disable;
 
 			public bool automaticPrepareHumanoid = true;
 			public bool automaticConfigureSpineEnabled = false;
@@ -169,8 +177,6 @@ namespace SA
 				public bool upperSolveSpine2Enabled = true;
 				public bool upperSolveSpine3Enabled = true;
 				public bool upperSolveSpine4Enabled = true;
-				public bool upperSolveAccurateSpineUEnabled = true;
-				public int upperSolveAccurateSpineIndex = 3;
 
 				public float upperCenterLegLerpRate = 1.0f;
 				public float upperSpineLerpRate = 1.0f;
@@ -178,7 +184,7 @@ namespace SA
 				public bool spineLimitEnabled = true;
 				public bool spineLimitAccurateEnabled = false;
 				public float spineLimitAngleX = 40.0f;
-				public float spineLimitAngleY = 10.0f;
+				public float spineLimitAngleY = 20.0f;
 
 				public float upperContinuousPreTranslateRate = 0.2f;
 				public float upperContinuousPreTranslateStableRate = 0.65f;
@@ -487,14 +493,93 @@ namespace SA
 				}
 			}
 
-			public LimbIK limbIK = new LimbIK();
 			public BodyIK bodyIK = new BodyIK();
+			public LimbIK limbIK = new LimbIK();
+		}
+
+		// Memo: Not Serializable
+		public class BoneCaches
+		{
+			public struct HipsToFootLength
+			{
+				public Vector3 hipsToLeg;
+				public Vector3 legToKnee;
+				public Vector3 kneeToFoot;
+
+				public Vector3 defaultOffset;
+			}
+
+			public HipsToFootLength[] hipsToFootLength = new HipsToFootLength[2];
+
+			void _PrepareHipsToFootLength( int index, Bone legBone, Bone kneeBone, Bone footBone, InternalValues internalValues )
+			{
+				Assert( internalValues != null );
+				if( legBone != null && kneeBone != null && footBone != null ) {
+					float hipsToLegLen = legBone._defaultLocalLength.length;
+                    float legToKneeLen = kneeBone._defaultLocalLength.length;
+					float kneeToFootLen = footBone._defaultLocalLength.length;
+
+					Vector3 hipsToLegDir = legBone._defaultLocalDirection;
+                    Vector3 legToKneeDir = kneeBone._defaultLocalDirection;
+					Vector3 kneeToFootDir = footBone._defaultLocalDirection;
+
+					SAFBIKMatMultVec( out hipsToFootLength[index].hipsToLeg, ref internalValues.defaultRootBasisInv, ref hipsToLegDir );
+					SAFBIKMatMultVec( out hipsToFootLength[index].legToKnee, ref internalValues.defaultRootBasisInv, ref legToKneeDir );
+					SAFBIKMatMultVec( out hipsToFootLength[index].kneeToFoot, ref internalValues.defaultRootBasisInv, ref kneeToFootDir );
+
+					hipsToFootLength[index].defaultOffset =
+						hipsToFootLength[index].hipsToLeg * hipsToLegLen +
+						hipsToFootLength[index].legToKnee * legToKneeLen +
+						hipsToFootLength[index].kneeToFoot * kneeToFootLen;
+				}
+			}
+
+			Vector3 _GetHipsOffset( int index, Bone legBone, Bone kneeBone, Bone footBone )
+			{
+				if( legBone != null && kneeBone != null && footBone != null ) {
+					float hipsToLegLen = legBone._defaultLocalLength.length;
+					float legToKneeLen = kneeBone._defaultLocalLength.length;
+					float kneeToFootLen = footBone._defaultLocalLength.length;
+
+					Vector3 currentOffset =
+						hipsToFootLength[index].hipsToLeg * hipsToLegLen +
+						hipsToFootLength[index].legToKnee * legToKneeLen +
+						hipsToFootLength[index].kneeToFoot * kneeToFootLen;
+
+					return currentOffset - hipsToFootLength[index].defaultOffset;
+				}
+
+				return Vector3.zero;
+            }
+
+			public Vector3 defaultHipsPosition = Vector3.zero;
+			public Vector3 hipsOffset = Vector3.zero;
+
+			public void Prepare( FullBodyIK fullBodyIK )
+			{
+				_PrepareHipsToFootLength( 0, fullBodyIK.leftLegBones.leg, fullBodyIK.leftLegBones.knee, fullBodyIK.leftLegBones.foot, fullBodyIK.internalValues );
+				_PrepareHipsToFootLength( 1, fullBodyIK.rightLegBones.leg, fullBodyIK.rightLegBones.knee, fullBodyIK.rightLegBones.foot, fullBodyIK.internalValues );
+				if( fullBodyIK.bodyBones.hips != null ) {
+					defaultHipsPosition = fullBodyIK.bodyBones.hips._defaultPosition;
+				}
+			}
+
+			public void _SyncDisplacement( FullBodyIK fullBodyIK )
+			{
+				Assert( fullBodyIK != null );
+
+				Vector3 hipsOffset0 = _GetHipsOffset( 0, fullBodyIK.leftLegBones.leg, fullBodyIK.leftLegBones.knee, fullBodyIK.leftLegBones.foot );
+				Vector3 hipsOffset1 = _GetHipsOffset( 1, fullBodyIK.rightLegBones.leg, fullBodyIK.rightLegBones.knee, fullBodyIK.rightLegBones.foot );
+				hipsOffset = (hipsOffset0 + hipsOffset1) * 0.5f;
+			}
 		}
 
 		public Transform rootTransform;
 
 		[System.NonSerialized]
 		public InternalValues internalValues = new InternalValues();
+		[System.NonSerialized]
+		public BoneCaches boneCaches = new BoneCaches();
 
 		public Settings settings;
 		public EditorSettings editorSettings;
@@ -530,6 +615,7 @@ namespace SA
 		FingerIK[] _fingerIK = new FingerIK[(int)FingerIKType.Max];
 
 		bool _isPrefixed;
+		bool _isPrepared;
 		[SerializeField]
 		bool _isPrefixedAtLeastOnce;
 
@@ -552,8 +638,8 @@ namespace SA
 #endif
 			Prepare();
 #if SAFULLBODYIK_DEBUG_CONSTRUCT_TIME
-			float prepareEndTime = Time.realtimeSinceStartup;
-			Debug.Log( "Total time: " + (prepareEndTime - constructBeginTime) + " _Prefix():" + (prefixEndTime - constructBeginTime) + " ConfigureBoneTransforms():" + (configureBoneEndTime - prefixEndTime) + " Prepare():" + (prepareEndTime - configureBoneEndTime) );
+			float prefetchEndTime = Time.realtimeSinceStartup;
+			Debug.Log( "Total time: " + (prefetchEndTime - constructBeginTime) + " _Prefix():" + (prefixEndTime - constructBeginTime) + " ConfigureBoneTransforms():" + (configureBoneEndTime - prefixEndTime) + " Prefetch():" + (prefetchEndTime - configureBoneEndTime) );
 #endif
 		}
 
@@ -696,7 +782,7 @@ namespace SA
 			_Prefix( ref headBones.head, BoneLocation.Head, headBones.neck );
 			_Prefix( ref headBones.leftEye, BoneLocation.LeftEye, headBones.head );
 			_Prefix( ref headBones.rightEye, BoneLocation.RightEye, headBones.head );
-			for( int i = 0; i < 2; ++i ) {
+			for( int i = 0; i != 2; ++i ) {
 				var legBones = (i == 0) ? leftLegBones : rightLegBones;
 				_Prefix( ref legBones.leg, (i == 0) ? BoneLocation.LeftLeg : BoneLocation.RightLeg, bodyBones.hips );
 				_Prefix( ref legBones.knee, (i == 0) ? BoneLocation.LeftKnee : BoneLocation.RightKnee, legBones.leg );
@@ -708,18 +794,18 @@ namespace SA
 				_Prefix( ref armBones.elbow, (i == 0) ? BoneLocation.LeftElbow : BoneLocation.RightElbow, armBones.arm );
 				_Prefix( ref armBones.wrist, (i == 0) ? BoneLocation.LeftWrist : BoneLocation.RightWrist, armBones.elbow );
 
-				for( int n = 0; n < MaxArmRollLength; ++n ) {
+				for( int n = 0; n != MaxArmRollLength; ++n ) {
 					var armRollLocation = (i == 0) ? BoneLocation.LeftArmRoll0 : BoneLocation.RightArmRoll0;
 					_Prefix( ref armBones.armRoll[n], (BoneLocation)((int)armRollLocation + n), armBones.arm );
 				}
 
-				for( int n = 0; n < MaxElbowRollLength; ++n ) {
+				for( int n = 0; n != MaxElbowRollLength; ++n ) {
 					var elbowRollLocation = (i == 0) ? BoneLocation.LeftElbowRoll0 : BoneLocation.RightElbowRoll0;
 					_Prefix( ref armBones.elbowRoll[n], (BoneLocation)((int)elbowRollLocation + n), armBones.elbow );
 				}
 
 				var fingerBones = (i == 0) ? leftHandFingersBones : rightHandFingersBones;
-				for( int n = 0; n < MaxHandFingerLength; ++n ) {
+				for( int n = 0; n != MaxHandFingerLength; ++n ) {
 					var thumbLocation = (i == 0) ? BoneLocation.LeftHandThumb0 : BoneLocation.RightHandThumb0;
 					var indexLocation = (i == 0) ? BoneLocation.LeftHandIndex0 : BoneLocation.RightHandIndex0;
 					var middleLocation = (i == 0) ? BoneLocation.LeftHandMiddle0 : BoneLocation.RightHandMiddle0;
@@ -882,11 +968,11 @@ namespace SA
 					Transform rightWrist = animator.GetBoneTransform( HumanBodyBones.RightHand );
 					Transform[,] leftFingers = new Transform[5, 4];
 					Transform[,] rightFingers = new Transform[5, 4];
-					for( int n = 0; n < 2; ++n ) {
+					for( int n = 0; n != 2; ++n ) {
 						int humanBodyBones = ((n == 0) ? (int)HumanBodyBones.LeftThumbProximal : (int)HumanBodyBones.RightThumbProximal);
 						Transform[,] fingers = ((n == 0) ? leftFingers : rightFingers);
-						for( int i = 0; i < 5; ++i ) {
-							for( int j = 0; j < 3; ++j, ++humanBodyBones ) {
+						for( int i = 0; i != 5; ++i ) {
+							for( int j = 0; j != 3; ++j, ++humanBodyBones ) {
 								fingers[i, j] = animator.GetBoneTransform( (HumanBodyBones)humanBodyBones );
 							}
 							// Fix for tips.
@@ -980,7 +1066,7 @@ namespace SA
 			if( settings.automaticConfigureRollEnabled ) {
 				var tempBones = new List<Transform>();
 
-				for( int side = 0; side < 2; ++side ) {
+				for( int side = 0; side != 2; ++side ) {
 					var armBones = (side == 0) ? leftArmBones : rightArmBones;
 					if( armBones != null &&
 						armBones.arm != null && armBones.arm.transform != null &&
@@ -1006,7 +1092,7 @@ namespace SA
 
 			int childCount = transform.childCount;
 
-			for( int i = 0; i < childCount; ++i ) {
+			for( int i = 0; i != childCount; ++i ) {
 				var childTransform = transform.GetChild( i );
 				var name = childTransform.name;
 				if( name != null && name.Contains( rollSpecialName ) ) {
@@ -1017,7 +1103,7 @@ namespace SA
 
 			tempBones.Clear();
 
-			for( int i = 0; i < childCount; ++i ) {
+			for( int i = 0; i != childCount; ++i ) {
 				var childTransform = transform.GetChild( i );
 				var name = childTransform.name;
 				if( name != null ) {
@@ -1038,7 +1124,7 @@ namespace SA
 			}
 
 			childCount = Mathf.Min( tempBones.Count, bones.Length );
-			for( int i = 0; i < childCount; ++i ) {
+			for( int i = 0; i != childCount; ++i ) {
 				_SetBoneTransform( ref bones[i], tempBones[i] );
 			}
 		}
@@ -1049,6 +1135,12 @@ namespace SA
 		{
 			_Prefix();
 
+			if( _isPrepared ) {
+				return;
+			}
+
+			_isPrepared = true;
+
 			Assert( rootTransform != null );
 			if( rootTransform != null ) { // Failsafe.
 				internalValues.defaultRootPosition = rootTransform.position;
@@ -1058,22 +1150,25 @@ namespace SA
 			}
 
 			if( _bones != null ) {
-				for( int i = 0; i < _bones.Length; ++i ) {
+				int boneLength = _bones.Length;
+				for( int i = 0; i != boneLength; ++i ) {
 					Assert( _bones[i] != null );
 					if( _bones[i] != null ) {
 						_bones[i].Prepare( this );
 					}
 				}
-				for( int i = 0; i < _bones.Length; ++i ) {
-					Assert( _bones[i] != null );
+				for( int i = 0; i != boneLength; ++i ) {
 					if( _bones[i] != null ) {
 						_bones[i].PostPrepare();
 					}
 				}
 			}
 
+			boneCaches.Prepare( this );
+
 			if( _effectors != null ) {
-				for( int i = 0; i < _effectors.Length; ++i ) {
+				int effectorLength = _effectors.Length;
+                for( int i = 0; i != effectorLength; ++i ) {
 					Assert( _effectors[i] != null );
 					if( _effectors[i] != null ) {
 						_effectors[i].Prepare( this );
@@ -1087,7 +1182,7 @@ namespace SA
 				_limbIK = new LimbIK[(int)LimbIKLocation.Max];
 			}
 
-			for( int i = 0; i < _limbIK.Length; ++i ) {
+			for( int i = 0; i != (int)LimbIKLocation.Max; ++i ) {
 				_limbIK[i] = new LimbIK( this, (LimbIKLocation)i );
 			}
 
@@ -1097,7 +1192,7 @@ namespace SA
 				_fingerIK = new FingerIK[(int)FingerIKType.Max];
 			}
 
-			for( int i = 0; i < _fingerIK.Length; ++i ) {
+			for( int i = 0; i != (int)FingerIKType.Max; ++i ) {
 				_fingerIK[i] = new FingerIK( this, (FingerIKType)i );
 			}
 		}
@@ -1140,6 +1235,47 @@ namespace SA
 
 			internalValues.bodyIK.Update( settings.bodyIK );
 			internalValues.limbIK.Update( settings.limbIK );
+        }
+
+		bool _isSyncDisplacementAtLeastOnce = false;
+
+		void _Bones_SyncDisplacement()
+		{
+			// Sync Displacement.
+			if( settings.syncDisplacement != SyncDisplacement.Disable ) {
+				if( settings.syncDisplacement == SyncDisplacement.Everyframe || !_isSyncDisplacementAtLeastOnce ) {
+					_isSyncDisplacementAtLeastOnce = true;
+
+					if( _bones != null ) {
+						int boneLength = _bones.Length;
+						for( int i = 0; i != boneLength; ++i ) {
+							if( _bones[i] != null ) {
+								_bones[i].SyncDisplacement();
+							}
+						}
+
+						// for Hips
+						boneCaches._SyncDisplacement( this );
+
+						for( int i = 0; i != boneLength; ++i ) {
+							if( _bones[i] != null ) {
+								_bones[i].PostSyncDisplacement( boneCaches );
+							}
+						}
+
+					}
+
+					// Forceupdate _defaultPosition / _defaultRotation
+					if( _effectors != null ) {
+						int effectorLength = _effectors.Length;
+						for( int i = 0; i != effectorLength; ++i ) {
+							if( _effectors[i] != null ) {
+								_effectors[i]._ComputeDefaultTransform( this );
+                            }
+						}
+					}
+                }
+			}
 		}
 
 		public void Update()
@@ -1147,7 +1283,8 @@ namespace SA
 			_UpdateInternalValues();
 
 			if( _effectors != null ) {
-				for( int i = 0; i < _effectors.Length; ++i ) {
+				int effectorLength = _effectors.Length;
+                for( int i = 0; i != effectorLength; ++i ) {
 					if( _effectors[i] != null ) {
 						_effectors[i].PrepareUpdate();
 					}
@@ -1158,10 +1295,13 @@ namespace SA
 
 			_Bones_PrepareUpdate();
 
+			_Bones_SyncDisplacement();
+
 			// Feedback bonePositions to effectorPositions.
 			// (for AnimatorEnabled only.)
 			if( _effectors != null ) {
-				for( int i = 0; i < _effectors.Length; ++i ) {
+				int effectorLength = _effectors.Length;
+				for( int i = 0; i != effectorLength; ++i ) {
 					if( _effectors[i] != null ) {
 						_effectors[i]._hidden_worldPosition = _effectors[i].worldPosition;
 
@@ -1182,8 +1322,13 @@ namespace SA
 			}
 
 			// Presolve locations.
-			for( int i = 0; i < _limbIK.Length; ++i ) {
-				_limbIK[i].PresolveBeinding();
+			if( _limbIK != null ) {
+				int limbIKLength = _limbIK.Length;
+                for( int i = 0; i != limbIKLength; ++i ) {
+					if( _limbIK[i] != null ) {
+						_limbIK[i].PresolveBeinding();
+					}
+				}
 			}
 
 			if( _bodyIK != null ) {
@@ -1197,7 +1342,8 @@ namespace SA
 
 				bool isSolved = false;
 				if( _limbIK != null ) {
-					for( int i = 0; i < _limbIK.Length; ++i ) {
+					int limbIKLength = _limbIK.Length;
+					for( int i = 0; i != limbIKLength; ++i ) {
 						if( _limbIK[i] != null ) {
 							isSolved |= _limbIK[i].Solve();
 						}
@@ -1217,8 +1363,11 @@ namespace SA
 				_Bones_PrepareUpdate();
 
 				bool isSolved = false;
-				for( int i = 0; i < _fingerIK.Length; ++i ) {
-					isSolved |= _fingerIK[i].Solve();
+				int fingerIKLength = _fingerIK.Length;
+                for( int i = 0; i != fingerIKLength; ++i ) {
+					if( _fingerIK[i] != null ) {
+						isSolved |= _fingerIK[i].Solve();
+					}
 				}
 
 				if( isSolved ) {
@@ -1230,7 +1379,8 @@ namespace SA
 		void _Bones_PrepareUpdate()
 		{
 			if( _bones != null ) {
-				for( int i = 0; i < _bones.Length; ++i ) {
+				int boneLength = _bones.Length;
+                for( int i = 0; i != boneLength; ++i ) {
 					if( _bones[i] != null ) {
 						_bones[i].PrepareUpdate();
 					}
@@ -1241,7 +1391,8 @@ namespace SA
 		void _Bones_WriteToTransform()
 		{
 			if( _bones != null ) {
-				for( int i = 0; i < _bones.Length; ++i ) {
+				int boneLength = _bones.Length;
+				for( int i = 0; i != boneLength; ++i ) {
 					if( _bones[i] != null ) {
 						_bones[i].WriteToTransform();
 					}
@@ -1255,13 +1406,15 @@ namespace SA
 			Vector3 cameraForward = Camera.current.transform.forward;
 
 			if( _effectors != null ) {
-				for( int i = 0; i != _effectors.Length; ++i ) {
+				int effectorLength = _effectors.Length;
+                for( int i = 0; i != effectorLength; ++i ) {
 					_DrawEffectorGizmo( _effectors[i] );
 				}
 			}
 
 			if( _bones != null ) {
-				for( int i = 0; i != _bones.Length; ++i ) {
+				int boneLength = _bones.Length;
+                for( int i = 0; i != boneLength; ++i ) {
 					_DrawBoneGizmo( _bones[i], ref cameraForward );
 				}
 			}
@@ -1269,9 +1422,10 @@ namespace SA
 #if SAFULLBODYIK_DEBUG
 			if( internalValues != null && internalValues.debugData != null ) {
 				var debugPoints = internalValues.debugData.debugPoints;
-				for( int i = 0; i < debugPoints.Count; ++i ) {
+				int debugPointCount = debugPoints.Count;
+                for( int i = 0; i != debugPointCount; ++i ) {
 					Gizmos.color = debugPoints[i].color;
-					for( int n = 0; n < 8; ++n ) {
+					for( int n = 0; n != 8; ++n ) {
 						Gizmos.DrawWireSphere( debugPoints[i].pos, debugPoints[i].size );
 					}
 				}
