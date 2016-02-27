@@ -149,15 +149,10 @@ namespace SA
 							_PrepareBranch( fingerType, bones, effector );
 						}
 					}
-
-					for( int fingerType = 0; fingerType != (int)FingerType.Max; ++fingerType ) {
-						_PrepareBranch2( fingerType );
-					}
-
-					_PrepareThumb();
 				}
 			}
 
+			// Allocation only.
 			void _PrepareBranch( int fingerType, Bone[] bones, Effector effector )
 			{
 				if( _parentBone == null || bones == null || effector == null ) {
@@ -203,39 +198,12 @@ namespace SA
 
 				_fingerBranches[fingerType] = fingerBranch;
 
-				_PrepareBranchInternal( fingerType );
-
 				if( fingerType == (int)FingerType.Thumb ) {
 					_thumbBranch = new _ThumbBranch();
 					_thumbBranch.thumbLinks = new _ThumbLink[boneLength];
 					for( int i = 0; i != boneLength; ++i ) {
 						_thumbBranch.thumbLinks[i] = new _ThumbLink();
 					}
-				}
-			}
-
-			// for Prepare, SyncDisplacement.
-			void _PrepareBranchInternal( int fingerType )
-			{
-				Assert( _internalValues != null && _fingerBranches != null );
-				_FingerBranch fingerBranch = _fingerBranches[fingerType];
-				if( fingerBranch == null || fingerBranch.effector == null ) {
-					return;
-				}
-
-				var effector = fingerBranch.effector;
-				bool isRight = (_fingerIKType == FingerIKType.RightWrist);
-
-				if( fingerBranch.fingerLinks != null && fingerBranch.fingerLinks.Length > 0 && fingerBranch.fingerLinks[0].bone != null ) {
-					Vector3 dirX = effector.defaultPosition - fingerBranch.fingerLinks[0].bone._defaultPosition;
-					dirX = isRight ? dirX : -dirX;
-					if( SAFBIKVecNormalize( ref dirX ) && SAFBIKComputeBasisFromXZLockX( out fingerBranch.boneToSolvedBasis, dirX, _internalValues.defaultRootBasis.column2 ) ) {
-						fingerBranch.solvedToBoneBasis = fingerBranch.boneToSolvedBasis.transpose;
-					}
-
-					fingerBranch.link0ToEffectorLength = SAFBIKVecLengthAndLengthSq2(
-						out fingerBranch.link0ToEffectorLengthSq,
-						ref effector._defaultPosition, ref fingerBranch.fingerLinks[0].bone._defaultPosition );
 				}
 			}
 
@@ -280,6 +248,18 @@ namespace SA
 				int fingerLinkLength = fingerBranch.fingerLinks.Length;
 
 				bool isRight = (_fingerIKType == FingerIKType.RightWrist);
+
+				if( fingerBranch.fingerLinks != null && fingerBranch.fingerLinks.Length > 0 && fingerBranch.fingerLinks[0].bone != null ) {
+					Vector3 dirX = fingerEffector.defaultPosition - fingerBranch.fingerLinks[0].bone._defaultPosition;
+					dirX = isRight ? dirX : -dirX;
+					if( SAFBIKVecNormalize( ref dirX ) && SAFBIKComputeBasisFromXZLockX( out fingerBranch.boneToSolvedBasis, dirX, _internalValues.defaultRootBasis.column2 ) ) {
+						fingerBranch.solvedToBoneBasis = fingerBranch.boneToSolvedBasis.transpose;
+					}
+
+					fingerBranch.link0ToEffectorLength = SAFBIKVecLengthAndLengthSq2(
+						out fingerBranch.link0ToEffectorLengthSq,
+						ref fingerEffector._defaultPosition, ref fingerBranch.fingerLinks[0].bone._defaultPosition );
+				}
 
 				if( fingerType == (int)FingerType.Thumb ) {
 					_FingerBranch middleFingerBranch = _fingerBranches[(int)FingerType.Middle];
@@ -519,17 +499,16 @@ namespace SA
 
 			void _SyncDisplacement()
 			{
-				if( _settings.syncDisplacement != SyncDisplacement.Disable ) {
-					if( _settings.syncDisplacement == SyncDisplacement.Everyframe || !_isSyncDisplacementAtLeastOnce ) {
-						_isSyncDisplacementAtLeastOnce = true;
+				// Measure bone length.(Using worldPosition)
+				// Force execution on 1st time. (Ignore case _settings.syncDisplacement == SyncDisplacement.Disable)
+				if( _settings.syncDisplacement == SyncDisplacement.Everyframe || !_isSyncDisplacementAtLeastOnce ) {
+					_isSyncDisplacementAtLeastOnce = true;
 
-						for( int fingerType = 0; fingerType != (int)FingerType.Max; ++fingerType ) {
-							_PrepareBranchInternal( fingerType );
-							_PrepareBranch2( fingerType );
-						}
+					for( int fingerType = 0; fingerType != (int)FingerType.Max; ++fingerType ) {
+						_PrepareBranch2( fingerType );
+					}
 
-						_PrepareThumb();
-                    }
+					_PrepareThumb();
 				}
 			}
 

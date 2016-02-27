@@ -302,6 +302,11 @@ namespace SA
 					_baseToWorldRotation = Quaternion.identity;
 				}
 
+				_ComputeLocalAxis( fullBodyIK ); // Require PostPrepare()
+			}
+
+			void _ComputeLocalAxis( FullBodyIK fullBodyIK )
+			{
 				// Compute _localAxisBasis for each bones.
 				if( this.transformIsAlive && (_parentBone != null && _parentBone.transformIsAlive) ) {
 					if( _localAxisFrom == _LocalAxisFrom.Parent ||
@@ -318,7 +323,7 @@ namespace SA
 									if( neckBone != null && neckBone.transformIsAlive ) { // Using spine / arm axis for shoulder. Preprocess for BodyIK.
 										Bone shoulderBone = _parentBone;
 										Bone spineBone = _parentBone._parentBone;
-                                        Vector3 xDir = (_parentBone._localDirectionAs == _DirectionAs.XMinus) ? -dir : dir;
+										Vector3 xDir = (_parentBone._localDirectionAs == _DirectionAs.XMinus) ? -dir : dir;
 										Vector3 yDir = neckBone._defaultPosition - shoulderBone._defaultPosition;
 										Vector3 zDir = Vector3.Cross( xDir, yDir );
 										yDir = Vector3.Cross( zDir, xDir );
@@ -413,13 +418,15 @@ namespace SA
 				}
 			}
 
-			public void PostSyncDisplacement( BoneCaches boneCache )
+			public void PostSyncDisplacement( FullBodyIK fullBodyIK )
 			{
 				if( _boneLocation == BoneLocation.Hips ) {
-					_defaultPosition = boneCache.defaultHipsPosition + boneCache.hipsOffset;
+					_defaultPosition = fullBodyIK.boneCaches.defaultHipsPosition + fullBodyIK.boneCaches.hipsOffset;
 				} else if( _parentBone != null ) {
 					_defaultPosition = _parentBone._defaultPosition + _defaultLocalTranslate;
 				}
+
+				_ComputeLocalAxis( fullBodyIK ); // Require PostPrepare()
 			}
 
 			public Vector3 worldPosition {

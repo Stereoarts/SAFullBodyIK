@@ -1259,10 +1259,15 @@ namespace SA
 
 						for( int i = 0; i != boneLength; ++i ) {
 							if( _bones[i] != null ) {
-								_bones[i].PostSyncDisplacement( boneCaches );
+								_bones[i].PostSyncDisplacement( this );
 							}
 						}
 
+						for( int i = 0; i != boneLength; ++i ) {
+							if( _bones[i] != null ) {
+								_bones[i].PostPrepare();
+							}
+						}
 					}
 
 					// Forceupdate _defaultPosition / _defaultRotation

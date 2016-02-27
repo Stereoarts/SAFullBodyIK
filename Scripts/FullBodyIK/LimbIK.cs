@@ -108,29 +108,9 @@ namespace SA
 
 			void _Prepare( FullBodyIK fullBodyIK )
 			{
-				_beginBoneToSolvedBasis = _beginBone._localAxisBasis;
-				_solvedToBeginBoneBasis = _beginBone._localAxisBasisInv;
-				_solvedToBendingBoneBasis = _bendingBone._localAxisBasisInv;
-
 				_endEffectorToWorldRotation = Inverse( _endEffector.defaultRotation ) * _endBone._defaultRotation;
 
-				SAFBIKMatMult( out _beginToBendingBoneBasis, ref _beginBone._localAxisBasisInv, ref _bendingBone._localAxisBasis );
-
-				if( _armRollBones != null ) {
-					if( _beginBone != null && _bendingBone != null ) {
-						SAFBIKMatMult( out _arm_bendingToBeginBoneBasis, ref _bendingBone._boneToBaseBasis, ref _beginBone._baseToBoneBasis );
-						SAFBIKMatMultGetRot( out _arm_bendingWorldToBeginBoneRotation, ref _bendingBone._worldToBaseBasis, ref _beginBone._baseToBoneBasis );
-                    }
-				}
-
-				if( _elbowRollBones != null ) {
-					if( _endBone != null && _bendingBone != null ) {
-						SAFBIKMatMultGetRot( out _arm_endWorldToBendingBoneRotation, ref _endBone._worldToBaseBasis, ref _bendingBone._baseToBoneBasis );
-                    }
-				}
-
 				// for _defaultCosTheta, _defaultSinTheta
-
 				_beginToBendingLength = _bendingBone._defaultLocalLength.length;
 				_beginToBendingLengthSq = _bendingBone._defaultLocalLength.lengthSq;
 				_bendingToEndLength = _endBone._defaultLocalLength.length;
@@ -160,7 +140,26 @@ namespace SA
 				if( _settings.syncDisplacement == SyncDisplacement.Everyframe || !_isSyncDisplacementAtLeastOnce ) {
 					_isSyncDisplacementAtLeastOnce = true;
 
-					_beginToBendingLength	= _bendingBone._defaultLocalLength.length;
+					_beginBoneToSolvedBasis = _beginBone._localAxisBasis;
+					_solvedToBeginBoneBasis = _beginBone._localAxisBasisInv;
+					_solvedToBendingBoneBasis = _bendingBone._localAxisBasisInv;
+
+					SAFBIKMatMult( out _beginToBendingBoneBasis, ref _beginBone._localAxisBasisInv, ref _bendingBone._localAxisBasis );
+
+					if( _armRollBones != null ) {
+						if( _beginBone != null && _bendingBone != null ) {
+							SAFBIKMatMult( out _arm_bendingToBeginBoneBasis, ref _bendingBone._boneToBaseBasis, ref _beginBone._baseToBoneBasis );
+							SAFBIKMatMultGetRot( out _arm_bendingWorldToBeginBoneRotation, ref _bendingBone._worldToBaseBasis, ref _beginBone._baseToBoneBasis );
+						}
+					}
+
+					if( _elbowRollBones != null ) {
+						if( _endBone != null && _bendingBone != null ) {
+							SAFBIKMatMultGetRot( out _arm_endWorldToBendingBoneRotation, ref _endBone._worldToBaseBasis, ref _bendingBone._baseToBoneBasis );
+						}
+					}
+
+					_beginToBendingLength = _bendingBone._defaultLocalLength.length;
 					_beginToBendingLengthSq	= _bendingBone._defaultLocalLength.lengthSq;
 					_bendingToEndLength		= _endBone._defaultLocalLength.length;
 					_bendingToEndLengthSq	= _endBone._defaultLocalLength.lengthSq;
