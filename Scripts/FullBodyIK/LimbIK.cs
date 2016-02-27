@@ -135,6 +135,8 @@ namespace SA
 
 			void _SyncDisplacement()
 			{
+				// Require to call before _UpdateArgs()
+
 				// Measure bone length.(Using worldPosition)
 				// Force execution on 1st time. (Ignore case _settings.syncDisplacement == SyncDisplacement.Disable)
 				if( _settings.syncDisplacement == SyncDisplacement.Everyframe || !_isSyncDisplacementAtLeastOnce ) {
@@ -159,7 +161,7 @@ namespace SA
 						}
 					}
 
-					_beginToBendingLength = _bendingBone._defaultLocalLength.length;
+					_beginToBendingLength	= _bendingBone._defaultLocalLength.length;
 					_beginToBendingLengthSq	= _bendingBone._defaultLocalLength.lengthSq;
 					_bendingToEndLength		= _endBone._defaultLocalLength.length;
 					_bendingToEndLengthSq	= _endBone._defaultLocalLength.lengthSq;
@@ -195,7 +197,10 @@ namespace SA
 						_leg_upperLimitNearCircleZ = 0.0f;
 						_leg_upperLimitNearCircleY = _beginToEndMaxLength;
 					}
-				}
+
+					// Forcereset args.
+					_SyncDisplacement_UpdateArgs();
+                }
 			}
 
 			float _cache_legUpperLimitAngle = 0.0f;
@@ -241,6 +246,27 @@ namespace SA
 				if( _effectorMaxLength._b != effectorMaxLengthRate ) {
 					_effectorMaxLength._Reset( _beginToEndMaxLength, effectorMaxLengthRate );
 				}
+			}
+
+			void _SyncDisplacement_UpdateArgs()
+			{
+				if( _limbIKType == LimbIKType.Leg ) {
+					float effectorMinLengthRate = _settings.limbIK.legEffectorMinLengthRate;
+					_effectorMinLength._Reset( _beginToEndMaxLength, effectorMinLengthRate );
+
+					// Memo: Their CachedDegreesToCosSin aren't required caching. (Use instantly.)
+					CachedDegreesToCosSin kneeUpperLimitTheta = new CachedDegreesToCosSin( _settings.limbIK.prefixKneeUpperLimitAngle );
+					CachedDegreesToCosSin legUpperLimitTheta = new CachedDegreesToCosSin( _settings.limbIK.prefixLegUpperLimitAngle );
+
+					_leg_upperLimitNearCircleZ = _beginToBendingLength * legUpperLimitTheta.cos
+												+ _bendingToEndLength * kneeUpperLimitTheta.cos;
+
+					_leg_upperLimitNearCircleY = _beginToBendingLength * legUpperLimitTheta.sin
+												+ _bendingToEndLength * kneeUpperLimitTheta.sin;
+				}
+
+				float effectorMaxLengthRate = (_limbIKType == LimbIKType.Leg) ? _settings.limbIK.legEffectorMaxLengthRate : _settings.limbIK.armEffectorMaxLengthRate;
+				_effectorMaxLength._Reset( _beginToEndMaxLength, effectorMaxLengthRate );
 			}
 
 			// for animatorEnabled
