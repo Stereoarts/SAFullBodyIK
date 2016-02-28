@@ -319,17 +319,44 @@ namespace SA
 
 							if( _parentBone._localAxisFrom == _LocalAxisFrom.Child ) {
 								if( _parentBone._boneType == BoneType.Shoulder ) {
+									Bone shoulderBone = _parentBone;
+									Bone spineUBone = _parentBone._parentBone;
 									Bone neckBone = (fullBodyIK.headBones != null) ? fullBodyIK.headBones.neck : null;
-									if( neckBone != null && neckBone.transformIsAlive ) { // Using spine / arm axis for shoulder. Preprocess for BodyIK.
-										Bone shoulderBone = _parentBone;
-										Bone spineBone = _parentBone._parentBone;
-										Vector3 xDir = (_parentBone._localDirectionAs == _DirectionAs.XMinus) ? -dir : dir;
-										Vector3 yDir = neckBone._defaultPosition - shoulderBone._defaultPosition;
-										Vector3 zDir = Vector3.Cross( xDir, yDir );
-										yDir = Vector3.Cross( zDir, xDir );
-										if( SAFBIKVecNormalize2( ref yDir, ref zDir ) ) {
-											_parentBone._localAxisBasis.SetColumn( ref xDir, ref yDir, ref zDir );
-										}
+									if( neckBone != null && !neckBone.transformIsAlive ) {
+										neckBone = null;
+									}
+
+									if( fullBodyIK.internalValues.shoulderDirYAsNeck == -1 ) {
+										if( spineUBone != null && neckBone != null ) {
+											Vector3 shoulderToSpineU = shoulderBone._defaultLocalDirection;
+											Vector3 shoulderToNeck = neckBone._defaultPosition - shoulderBone._defaultPosition;
+											if( SAFBIKVecNormalize( ref shoulderToNeck ) ) {
+												float shoulderToSpineUTheta = Mathf.Abs( Vector3.Dot( dir, shoulderToSpineU ) );
+												float shoulderToNeckTheta = Mathf.Abs( Vector3.Dot( dir, shoulderToNeck ) );
+												if( shoulderToSpineUTheta < shoulderToNeckTheta ) {
+													fullBodyIK.internalValues.shoulderDirYAsNeck = 0;
+												} else {
+													fullBodyIK.internalValues.shoulderDirYAsNeck = 1;
+												}
+											} else {
+												fullBodyIK.internalValues.shoulderDirYAsNeck = 0;
+											}
+										} else {
+											fullBodyIK.internalValues.shoulderDirYAsNeck = 0;
+                                        }
+									}
+
+									Vector3 xDir, yDir, zDir;
+									xDir = (_parentBone._localDirectionAs == _DirectionAs.XMinus) ? -dir : dir;
+									if( fullBodyIK.internalValues.shoulderDirYAsNeck != 0 && neckBone != null ) {
+										yDir = neckBone._defaultPosition - shoulderBone._defaultPosition;
+									} else {
+										yDir = shoulderBone._defaultLocalDirection;
+									}
+									zDir = Vector3.Cross( xDir, yDir );
+									yDir = Vector3.Cross( zDir, xDir );
+									if( SAFBIKVecNormalize2( ref yDir, ref zDir ) ) {
+										_parentBone._localAxisBasis.SetColumn( ref xDir, ref yDir, ref zDir );
 									}
 								} else if( _parentBone._boneType == BoneType.Spine && _boneType != BoneType.Spine && _boneType != BoneType.Neck ) {
 									// Compute spine/neck only( Exclude shouder / arm ).

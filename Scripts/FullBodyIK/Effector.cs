@@ -207,7 +207,7 @@ namespace SA
 			static _EffectorFlags _GetEffectorFlags( EffectorType effectorType )
 			{
 				switch( effectorType ) {
-				case EffectorType.Hips:	return _EffectorFlags.RotationContained;
+				case EffectorType.Hips:		return _EffectorFlags.RotationContained | _EffectorFlags.PullContained;
 				case EffectorType.Head:		return _EffectorFlags.RotationContained;
 				case EffectorType.Wrist:	return _EffectorFlags.RotationContained | _EffectorFlags.PullContained;
 				case EffectorType.Foot:		return _EffectorFlags.RotationContained | _EffectorFlags.PullContained;

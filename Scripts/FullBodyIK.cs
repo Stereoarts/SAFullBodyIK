@@ -294,6 +294,7 @@ namespace SA
 			public bool animatorEnabled;
 			public bool resetTransforms;
 			public bool continuousSolverEnabled;
+			public int shoulderDirYAsNeck = -1;
 
 			public Vector3 defaultRootPosition = Vector3.zero;
 			public Matrix3x3 defaultRootBasis = Matrix3x3.identity;
