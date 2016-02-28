@@ -375,6 +375,7 @@ namespace SA
 			Vector3[] _tempArmPos2 = new Vector3[2];
 			Vector3[] _tempShoulderPos = new Vector3[2];
 			Vector3[] _tempShoulderPos2 = new Vector3[2];
+			float[] _tempShoulderToArmWeight = new float[2];
 
 			bool _UpperSolve()
 			{
@@ -383,12 +384,16 @@ namespace SA
 					return false; // No moved.
 				}
 
+				_tempShoulderToArmWeight[0] = _armEffectors[0].positionEnabled ? _armEffectors[0].positionWeight : 0.0f;
+				_tempShoulderToArmWeight[1] = _armEffectors[1].positionEnabled ? _armEffectors[1].positionWeight : 0.0f;
+
 				float hipsWeight = _hipsEffector.positionEnabled ? _hipsEffector.positionWeight : 0.0f;
 				float neckWeight = _neckEffector.positionEnabled ? _neckEffector.positionWeight : 0.0f;
 				float eyesWeight = _eyesEffector.positionEnabled ? _eyesEffector.positionWeight : 0.0f;
 				float armPull0 = _wristEffectors[0].positionEnabled ? _wristEffectors[0].pull : 0.0f;
 				float armPull1 = _wristEffectors[1].positionEnabled ? _wristEffectors[1].pull : 0.0f;
-				if( hipsWeight <= IKEpsilon && neckWeight <= IKEpsilon && eyesWeight <= IKEpsilon && armPull0 <= IKEpsilon && armPull1 <= IKEpsilon ) {
+				if( hipsWeight <= IKEpsilon && neckWeight <= IKEpsilon && eyesWeight <= IKEpsilon && armPull0 <= IKEpsilon && armPull1 <= IKEpsilon &&
+					_tempShoulderToArmWeight[0] <= IKEpsilon && _tempShoulderToArmWeight[1] <= IKEpsilon ) {
 					return false; // No moved.
 				}
 
@@ -428,6 +433,15 @@ namespace SA
 					temp.SetDirtyVariables();
 				}
 
+				// At 1st time, feedback _armEffectors.(Optional)
+				temp.arms.ClearEnvTargetBeginPos();
+
+				for( int i = 0; i != 2; ++i ) {
+					if( _tempShoulderToArmWeight[i] > IKEpsilon ) {
+						_UpperSolve_ShoulderToArm( i ); // Update temp.arms.beginPos(armPos)
+					}
+				}
+
 				// Solve.
 				if( !temp.arms.SolveTargetBeginPos() ) {
 					// Nothing.
@@ -450,7 +464,7 @@ namespace SA
 						ref _internalValues.bodyIK.upperContinuousPreTranslateStableRate,
 						ref baseCenterLegPos );
 
-					temp.arms.SolveTargetBeginPos(); // Must call.
+					temp.arms.SolveTargetBeginPos(); // Must call.(When moved bones.)
 				}
 
 				int spineLength = (_spineBones != null) ? (_spineBones.Length) : 0;
@@ -544,6 +558,15 @@ namespace SA
 					// Salvage bone positions at end of testsolver.
 					temp.Restore();
 
+					// At 1st time, feedback _armEffectors.(Optional)
+					temp.arms.ClearEnvTargetBeginPos();
+
+					for( int i = 0; i != 2; ++i ) {
+						if( _tempShoulderToArmWeight[i] > IKEpsilon ) {
+							_UpperSolve_ShoulderToArm( i ); // Update temp.arms.beginPos(armPos)
+						}
+					}
+
 					if( !temp.arms.SolveTargetBeginPos() ) {
 						// Nothing.
 					}
@@ -572,20 +595,20 @@ namespace SA
 				}
 
 				// pending: contain neck.
-				Vector3 centerArmDirX = _tempArmPos[1] - _tempArmPos[0];
-				Vector3 centerArmDirX2 = _tempArmPos2[1] - _tempArmPos2[0];
+				Vector3 centerArmDirX;
+				Vector3 centerArmDirX2;
 
 				Vector3 centerArmPos, centerArmPos2;
 				Vector3 centerArmDirY, centerArmDirY2;
 
 				if( _armBones != null ) {
 					if( _shoulderBones != null ) {
-						_LimitMaxLength( ref _tempShoulderPos[0], ref _tempArmPos[0], _shoulderToArmLength[0] );
-						_LimitMaxLength( ref _tempShoulderPos[1], ref _tempArmPos[1], _shoulderToArmLength[1] );
+						_KeepLength( ref _tempShoulderPos[0], ref _tempArmPos[0], _shoulderToArmLength[0] );
+						_KeepLength( ref _tempShoulderPos[1], ref _tempArmPos[1], _shoulderToArmLength[1] );
 						centerArmDirX = _tempShoulderPos[1] - _tempShoulderPos[0];
 
-						_LimitMaxLength( ref _tempShoulderPos2[0], ref _tempArmPos2[0], _shoulderToArmLength[0] );
-						_LimitMaxLength( ref _tempShoulderPos2[1], ref _tempArmPos2[1], _shoulderToArmLength[1] );
+						_KeepLength( ref _tempShoulderPos2[0], ref _tempArmPos2[0], _shoulderToArmLength[0] );
+						_KeepLength( ref _tempShoulderPos2[1], ref _tempArmPos2[1], _shoulderToArmLength[1] );
 						centerArmDirX2 = _tempShoulderPos2[1] - _tempShoulderPos2[0];
 					} else {
 						centerArmDirX = _tempArmPos[1] - _tempArmPos[0];
@@ -974,8 +997,8 @@ namespace SA
 				SAFBIKMatMultVecPreSubAdd( out baseLegPos1, ref centerLegBasis, ref _legBones[1]._defaultPosition, ref _defaultCenterLegPos, ref centerLegPos );
 
 				bool isLimited = false;
-				isLimited |= _LimitMaxLength( ref baseLegPos0, ref footPos0, _legEffectorMaxLength[0].length );
-				isLimited |= _LimitMaxLength( ref baseLegPos1, ref footPos1, _legEffectorMaxLength[1].length );
+				isLimited |= _KeepLength( ref baseLegPos0, ref footPos0, _legEffectorMaxLength[0].length );
+				isLimited |= _KeepLength( ref baseLegPos1, ref footPos1, _legEffectorMaxLength[1].length );
 
 				if( isLimited ) {
 					if( _footEffectors[0].positionEnabled || _footEffectors[1].positionEnabled ) {
@@ -1273,6 +1296,7 @@ namespace SA
 					_solverInternal = new SolverInternal();
 					_solverInternal.settings = _settings;
 					_solverInternal._shouderLocalAxisYInv = _shouderLocalAxisYInv;
+					_solverInternal._armEffectors = _armEffectors;
                     _solverInternal._centerLegBoneBasisInv = this._centerLegBoneBasisInv;
 					if( _spineUBone != null ) {
 						if( _shoulderBones != null || _armBones != null ) {
@@ -1570,6 +1594,25 @@ namespace SA
 						_PullToWeight2( this.pull, this.weight );				
 					}
 
+					public void ClearEnvTargetBeginPos()
+					{
+						for( int i = 0; i < 2; ++i ) {
+							_ClearEnvTargetBeginPos( i, ref this.beginPos[i] );
+						}
+					}
+
+					public void ClearEnvTargetBeginPos( int i )
+					{
+						_ClearEnvTargetBeginPos( i, ref this.beginPos[i] );
+					}
+
+					public void _ClearEnvTargetBeginPos( int i, ref Vector3 beginPos )
+					{
+						this.targetBeginPos[i] = beginPos;
+						this.targetBeginPosRated[i] = beginPos;
+						this.targetBeginPosEnabled[i] = false;
+					}
+
 					public bool SolveTargetBeginPos()
 					{
 						bool r = false;
@@ -1644,6 +1687,7 @@ namespace SA
 
 				public Settings settings;
 				public bool[] _shouderLocalAxisYInv;
+				public Effector[] _armEffectors;
 
 				public Limb arms = new Limb();
 				public Limb legs = new Limb();
@@ -2169,10 +2213,23 @@ namespace SA
 						var armPos = this.arms.beginPos;
 						var targetArmPos = this.arms.targetBeginPosRated;
 						var targetArmPosEnabled = this.arms.targetBeginPosEnabled;
-	
-						if( targetArmPosEnabled[i] ) {
-							if( !IsFuzzy( ref armPos[i], ref targetArmPos[i] ) ) {
-								Vector3 dirX = targetArmPos[i] - this.shoulderPos[i];
+						Vector3 destArmPos = targetArmPos[i];
+						bool destArmPosEnabled = targetArmPosEnabled[i];
+
+						Assert( _armEffectors != null );
+						var armEffector = _armEffectors[i];
+						Assert( armEffector != null );
+						if( armEffector.positionEnabled && armEffector.positionWeight > IKEpsilon ) {
+							if( !destArmPosEnabled ) {
+								destArmPos = armEffector._hidden_worldPosition;
+                            } else {
+								destArmPos = Vector3.Lerp( destArmPos, armEffector._hidden_worldPosition, armEffector.positionWeight );
+							}
+						}
+
+						if( destArmPosEnabled ) {
+							if( !IsFuzzy( ref armPos[i], ref destArmPos ) ) {
+								Vector3 dirX = destArmPos - this.shoulderPos[i];
 								if( SAFBIKVecNormalize( ref dirX ) ) {
 									if( settings.bodyIK.shoulderLimitEnabled ) {
 										Matrix3x3 worldBasis = this.spineUBasis;
@@ -2210,12 +2267,12 @@ namespace SA
 
 			//----------------------------------------------------------------------------------------------------------------------------------------
 
-			public static bool _LimitMaxLength( ref Vector3 posTo, ref Vector3 posFrom, float maxLength )
+			public static bool _KeepLength( ref Vector3 posTo, ref Vector3 posFrom, float keepLength )
 			{
 				Vector3 v = posTo - posFrom;
 				float len = SAFBIKVecLength( ref v );
 				if( len > IKEpsilon ) {
-					v = v * (maxLength / len);
+					v = v * (keepLength / len);
 					posTo = posFrom + v;
 					return true;
 				}

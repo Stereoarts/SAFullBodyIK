@@ -180,8 +180,6 @@ namespace SA
 					}
 				}
 
-				bool isRight = (_fingerIKType == FingerIKType.RightWrist);
-
 				_FingerBranch fingerBranch = new _FingerBranch();
 				fingerBranch.effector = effector;
 
