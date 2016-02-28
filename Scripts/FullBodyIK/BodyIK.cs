@@ -2222,6 +2222,7 @@ namespace SA
 						if( armEffector.positionEnabled && armEffector.positionWeight > IKEpsilon ) {
 							if( !destArmPosEnabled ) {
 								destArmPos = armEffector._hidden_worldPosition;
+								destArmPosEnabled = true;
                             } else {
 								destArmPos = Vector3.Lerp( destArmPos, armEffector._hidden_worldPosition, armEffector.positionWeight );
 							}
