@@ -29,7 +29,6 @@ namespace SA
 			float _eyeOuterLimit = Mathf.Sin( 50.0f * Mathf.Deg2Rad );
 			float _eyeUpperLimit = Mathf.Sin( 20.0f * Mathf.Deg2Rad );
 			float _eyeLowerLimit = Mathf.Sin( 30.0f * Mathf.Deg2Rad );
-			//float _eyeLimitRate = 0.5f;
 
 			public HeadIK( FullBodyIK fullBodyIK )
 			{

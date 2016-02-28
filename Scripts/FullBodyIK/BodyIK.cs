@@ -438,7 +438,7 @@ namespace SA
 
 				for( int i = 0; i != 2; ++i ) {
 					if( _tempShoulderToArmWeight[i] > IKEpsilon ) {
-						_UpperSolve_ShoulderToArm( i ); // Update temp.arms.beginPos(armPos)
+						_UpperSolve_ShoulderToArm( i, true ); // Update temp.arms.beginPos(armPos)
 					}
 				}
 
@@ -447,24 +447,30 @@ namespace SA
 					// Nothing.
 				}
 
-				// PreTranslate.
-				if( _internalValues.bodyIK.upperPreTranslateRate.isGreater0 ) {
-					for( int i = 0; i < 2; ++i ) {
-						float pull = _wristEffectors[i].positionEnabled ? _wristEffectors[i].pull : 0.0f;
-						temp.arms.ResolveTargetBeginPosRated( i, pull ); // Memo: Not contain upperPreTranslateRate
+				if( _hipsEffector.positionEnabled &&
+					_hipsEffector.positionWeight <= IKEpsilon &&
+					_hipsEffector.pull >= 1.0f - IKEpsilon ) {
+					// Nothing.(Always locked.)
+				} else {
+					// PreTranslate.
+					if( _internalValues.bodyIK.upperPreTranslateRate.isGreater0 ) {
+						for( int i = 0; i < 2; ++i ) {
+							float pull = _wristEffectors[i].positionEnabled ? _wristEffectors[i].pull : 0.0f;
+							temp.arms.ResolveTargetBeginPosRated( i, pull ); // Memo: Not contain upperPreTranslateRate
 
-						if( temp.arms.targetBeginPosEnabled[i] ) {
-							// for _UpperSolve_Translate()
-							_UpperSolve_ShoulderToArm( i ); // Update temp.arms.beginPos(armPos)
+							if( temp.arms.targetBeginPosEnabled[i] ) {
+								// for _UpperSolve_Translate()
+								_UpperSolve_ShoulderToArm( i ); // Update temp.arms.beginPos(armPos)
+							}
 						}
+
+						_UpperSolve_Translate(
+							ref _internalValues.bodyIK.upperPreTranslateRate,
+							ref _internalValues.bodyIK.upperContinuousPreTranslateStableRate,
+							ref baseCenterLegPos );
+
+						temp.arms.SolveTargetBeginPos(); // Must call.(When moved bones.)
 					}
-
-					_UpperSolve_Translate(
-						ref _internalValues.bodyIK.upperPreTranslateRate,
-						ref _internalValues.bodyIK.upperContinuousPreTranslateStableRate,
-						ref baseCenterLegPos );
-
-					temp.arms.SolveTargetBeginPos(); // Must call.(When moved bones.)
 				}
 
 				int spineLength = (_spineBones != null) ? (_spineBones.Length) : 0;
@@ -563,7 +569,7 @@ namespace SA
 
 					for( int i = 0; i != 2; ++i ) {
 						if( _tempShoulderToArmWeight[i] > IKEpsilon ) {
-							_UpperSolve_ShoulderToArm( i ); // Update temp.arms.beginPos(armPos)
+							_UpperSolve_ShoulderToArm( i, true ); // Update temp.arms.beginPos(armPos)
 						}
 					}
 
@@ -1194,11 +1200,17 @@ namespace SA
 						SAFBIKMatMultGetRot( out worldRotation, ref tempBasis, ref _hipsBone._defaultBasis );
 						_hipsBone.worldRotation = worldRotation;
 
-						if( _hipsBone.isWritebackWorldPosition ) {
-							Vector3 worldPosition;
-							Vector3 inv_defaultLocalTranslate = -_spineBone._defaultLocalTranslate;
-							SAFBIKMatMultVecAdd( out worldPosition, ref tempBasis, ref inv_defaultLocalTranslate, ref temp.spinePos[0] );
-							_hipsBone.worldPosition = worldPosition;
+						if( _hipsEffector.positionEnabled &&
+							_hipsEffector.positionWeight <= IKEpsilon &&
+							_hipsEffector.pull >= 1.0f - IKEpsilon ) {
+							// Nothing.(Always locked.)
+						} else {
+							if( _hipsBone.isWritebackWorldPosition ) {
+								Vector3 worldPosition;
+								Vector3 inv_defaultLocalTranslate = -_spineBone._defaultLocalTranslate;
+								SAFBIKMatMultVecAdd( out worldPosition, ref tempBasis, ref inv_defaultLocalTranslate, ref temp.spinePos[0] );
+								_hipsBone.worldPosition = worldPosition;
+							}
 						}
 					} else { // Failsafe.
 						if( SAFBIKVecNormalize( ref dirX ) ) {
@@ -1365,7 +1377,7 @@ namespace SA
 				return true;
 			}
 
-			void _UpperSolve_ShoulderToArm()
+			void _UpperSolve_ShoulderToArm( bool isArmEffectorOnly = false )
 			{
 				for( int i = 0; i < 2; ++i ) {
 					_solverInternal.SolveShoulderToArm(
@@ -1374,11 +1386,12 @@ namespace SA
 						_shoulderToArmLength,
 						_internalValues.bodyIK.shoulderLimitThetaYPlus.sin,
 						_internalValues.bodyIK.shoulderLimitThetaYMinus.sin,
-						_internalValues.bodyIK.shoulderLimitThetaZ.sin );
+						_internalValues.bodyIK.shoulderLimitThetaZ.sin,
+						isArmEffectorOnly );
 				}
 			}
 
-			void _UpperSolve_ShoulderToArm( int i )
+			void _UpperSolve_ShoulderToArm( int i, bool isArmEffectorOnly = false )
 			{
 				_solverInternal.SolveShoulderToArm(
 					i,
@@ -1386,7 +1399,8 @@ namespace SA
 					_shoulderToArmLength,
 					_internalValues.bodyIK.shoulderLimitThetaYPlus.sin,
 					_internalValues.bodyIK.shoulderLimitThetaYMinus.sin,
-					_internalValues.bodyIK.shoulderLimitThetaZ.sin );
+					_internalValues.bodyIK.shoulderLimitThetaZ.sin,
+					isArmEffectorOnly );
 			}
 
 			void _PresolveHips()
@@ -2197,7 +2211,8 @@ namespace SA
 					float[] shoulderToArmLength,
 					float limitYPlus,
 					float limitYMinus,
-					float limitZ )
+					float limitZ,
+					bool isArmEffectorOnly )
 				{
 					if( !settings.bodyIK.shoulderSolveEnabled ) {
 						return;
@@ -2221,6 +2236,10 @@ namespace SA
 						Assert( armEffector != null );
 						if( armEffector.positionEnabled && armEffector.positionWeight > IKEpsilon ) {
 							if( !destArmPosEnabled ) {
+								if( !isArmEffectorOnly ) {
+									return; // Exclude 1st phase.
+								}
+
 								destArmPos = armEffector._hidden_worldPosition;
 								destArmPosEnabled = true;
                             } else {
