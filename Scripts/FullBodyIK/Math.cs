@@ -1865,6 +1865,56 @@ namespace SA
 			return false;
 		}
 
+		public static bool _LimitYZ_Square(
+			bool isRight,
+			ref Vector3 dir,                    // dirX
+			float limitYMinus,                  // Y-
+			float limitYPlus,                   // Y+
+			float limitZMinus,                  // Z-
+			float limitZPlus )                  // Z+
+		{
+			bool isYLimited = false;
+			bool isZLimited = false;
+
+			if( dir.y < -limitYMinus ) {
+				dir.y = -limitYMinus;
+				isYLimited = true;
+			} else if( dir.y > limitYPlus ) {
+				dir.y = limitYPlus;
+				isYLimited = true;
+			}
+
+			if( dir.z < -limitZMinus ) {
+				dir.z = -limitZMinus;
+				isZLimited = true;
+			} else if( dir.z > limitZPlus ) {
+				dir.z = limitZPlus;
+				isZLimited = true;
+			}
+
+			if( isYLimited || isZLimited ) {
+				dir.x = SAFBIKSqrt( 1.0f - (dir.y * dir.y + dir.z * dir.z) );
+				if( !isRight ) {
+					dir.x = -dir.x;
+				}
+				return true;
+			} else {
+				if( isRight ) {
+					if( dir.x < 0.0f ) {
+						dir.x = -dir.x;
+						return true;
+					}
+				} else {
+					if( dir.x >= 0.0f ) {
+						dir.x = -dir.x;
+						return true;
+					}
+				}
+			}
+
+			return false;
+		}
+
 		//--------------------------------------------------------------------------------------------------------------------
 
 		public static bool _LimitXY(

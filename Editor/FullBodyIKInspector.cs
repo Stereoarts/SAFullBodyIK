@@ -228,7 +228,9 @@ namespace SA
 				EditorUtil.GUI.Slider01( "Spine DirX Leg To Arm To Rate", ref settings.bodyIK.spineDirXLegToArmToRate );
 				EditorUtil.GUI.Slider01( "Spine DirY Lerp Rate", ref settings.bodyIK.spineDirYLerpRate );
 
-				EditorUtil.GUI.Slider01( "Upper PreTranslate Rate", ref settings.bodyIK.upperPreTranslateRate );
+				EditorUtil.GUI.Slider01( "Upper CenterLeg Translate Rate", ref settings.bodyIK.upperCenterLegTranslateRate );
+				EditorUtil.GUI.Slider01( "Upper Spine Translate Rate", ref settings.bodyIK.upperSpineTranslateRate );
+				//EditorUtil.GUI.Slider01( "Upper PreTranslate Rate", ref settings.bodyIK.upperPreTranslateRate );
 				EditorUtil.GUI.Slider01( "Upper CenterLeg Rotate Rate", ref settings.bodyIK.upperCenterLegRotateRate );
 				EditorUtil.GUI.Slider01( "Upper Spine Rotate Rate", ref settings.bodyIK.upperSpineRotateRate );
 				EditorUtil.GUI.Slider01( "Upper PostTranslate Rate", ref settings.bodyIK.upperPostTranslateRate );

@@ -167,9 +167,14 @@ namespace SA
 				public float spineDirXLegToArmToRate = 0.9f;
 				public float spineDirYLerpRate = 0.7f;
 
-				public float upperPreTranslateRate = 0.2f;
-				public float upperCenterLegRotateRate = 0.673f;
-				public float upperSpineRotateRate = 0.775f;
+				public float upperCenterLegTranslateRate = 0.5f;
+				public float upperSpineTranslateRate = 0.6f;
+
+				public float upperPreTranslateRate = 0.2f;			// Legacy
+				//public float upperCenterLegRotateRate = 0.673f;
+				//public float upperSpineRotateRate = 0.775f;
+				public float upperCenterLegRotateRate = 0.6f;
+				public float upperSpineRotateRate = 0.9f;
 				public float upperPostTranslateRate = 1.0f;
 
 				public bool upperSolveHipsEnabled = true;
@@ -367,6 +372,9 @@ namespace SA
 				public CachedDegreesToSin shoulderLimitThetaYMinus = CachedDegreesToSin.zero;
 				public CachedDegreesToSin shoulderLimitThetaZ = CachedDegreesToSin.zero;
 
+				public CachedRate01 upperCenterLegTranslateRate = CachedRate01.zero;
+				public CachedRate01 upperSpineTranslateRate = CachedRate01.zero;
+
 				public CachedRate01 upperPreTranslateRate = CachedRate01.zero;
 				public CachedRate01 upperPostTranslateRate = CachedRate01.zero;
 
@@ -401,11 +409,17 @@ namespace SA
 						shoulderLimitThetaZ._Reset( settingsBodyIK.shoulderLimitAngleZ );
 					}
 
+					if( upperCenterLegTranslateRate._value != settingsBodyIK.upperCenterLegTranslateRate ||
+						upperSpineTranslateRate._value != settingsBodyIK.upperSpineTranslateRate ) {
+						upperCenterLegTranslateRate._Reset( settingsBodyIK.upperCenterLegTranslateRate );
+						upperSpineTranslateRate._Reset( Mathf.Max( settingsBodyIK.upperCenterLegTranslateRate, settingsBodyIK.upperSpineTranslateRate ) );
+					}
+
 					if( upperPreTranslateRate._value != settingsBodyIK.upperPreTranslateRate ) {
 						upperPreTranslateRate._Reset( settingsBodyIK.upperPreTranslateRate );
 					}
-					if( upperPostTranslateRate._value != settingsBodyIK.upperPreTranslateRate ) {
-						upperPostTranslateRate._Reset( settingsBodyIK.upperPreTranslateRate );
+					if( upperPostTranslateRate._value != settingsBodyIK.upperPostTranslateRate ) {
+						upperPostTranslateRate._Reset( settingsBodyIK.upperPostTranslateRate );
 					}
 
 					if( upperCenterLegRotateRate._value != settingsBodyIK.upperCenterLegRotateRate ||

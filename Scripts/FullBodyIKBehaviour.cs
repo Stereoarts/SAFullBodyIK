@@ -8,6 +8,7 @@ using System.Collections.Generic;
 namespace SA
 {
 	[ExecuteInEditMode]
+	[DisallowMultipleComponent]
 	public class FullBodyIKBehaviour : MonoBehaviour
 	{
 		[SerializeField]
