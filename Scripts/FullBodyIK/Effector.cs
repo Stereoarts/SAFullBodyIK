@@ -131,16 +131,13 @@ namespace SA
 				}
 			}
 			
-			// Call from Serializer.
-			public static Effector Preset( EffectorLocation effectorLocation )
+			public void Prefix()
 			{
-				Effector effector = new Effector();
-				effector._PresetEffectorLocation( effectorLocation );
-				effector.positionEnabled = _GetPresetPositionEnabled( effector._effectorType );
-				effector.pull = _GetPresetPull( effector._effectorType );
-				return effector;
+				positionEnabled = _GetPresetPositionEnabled( _effectorType );
+				positionWeight = _GetPresetPositionWeight( _effectorType );
+				pull = _GetPresetPull( _effectorType );
 			}
-			
+
 			void _PresetEffectorLocation( EffectorLocation effectorLocation )
 			{
 				_isPresetted = true;
@@ -196,9 +193,21 @@ namespace SA
 				return false;
 			}
 
+			static float _GetPresetPositionWeight( EffectorType effectorType )
+			{
+				switch( effectorType ) {
+				case EffectorType.Arm:		return 0.0f;
+				}
+
+				return 1.0f;
+			}
+
 			static float _GetPresetPull( EffectorType effectorType )
 			{
 				switch( effectorType ) {
+				case EffectorType.Hips:		return 1.0f;
+				case EffectorType.Eyes:		return 1.0f;
+				case EffectorType.Arm:		return 1.0f;
 				case EffectorType.Wrist:	return 1.0f;
 				case EffectorType.Foot:		return 1.0f;
 				}

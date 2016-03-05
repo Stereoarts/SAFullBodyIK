@@ -878,19 +878,10 @@ namespace SA
 
 			if( !_isPrefixedAtLeastOnce ) {
 				_isPrefixedAtLeastOnce = true;
-				_PresetEffectorPull( leftArmEffectors.wrist );
-				_PresetEffectorPull( rightArmEffectors.wrist );
-				_PresetEffectorPull( leftLegEffectors.foot );
-				_PresetEffectorPull( rightLegEffectors.foot );
+				for( int i = 0; i != _effectors.Length; ++i ) {
+					_effectors[i].Prefix();
+                }
 			}
-		}
-
-		static void _PresetEffectorPull( Effector effector )
-		{
-			if( effector != null ) {
-				effector.positionEnabled = true;
-				effector.pull = 1.0f;
-            }
 		}
 
 		public void CleanupBoneTransforms()
