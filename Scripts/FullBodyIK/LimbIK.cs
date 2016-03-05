@@ -767,27 +767,10 @@ namespace SA
 								float elbowBaseAngle = _settings.limbIK.automaticElbowBaseAngle;
 								float elbowLowerAngle = _settings.limbIK.automaticElbowLowerAngle;
 								float elbowUpperAngle = _settings.limbIK.automaticElbowUpperAngle;
-								float elbowBackUpperAngle = _settings.limbIK.automaticElbowBackUpperAngle;
-								float elbowBackLowerAngle = _settings.limbIK.automaticElbowBackLowerAngle;
-
-								// Based on localXZ
-								float armEffectorBackBeginSinTheta = _internalValues.limbIK.armEffectorBackBeginTheta.sin;
-								float armEffectorBackCoreBeginSinTheta = _internalValues.limbIK.armEffectorBackCoreBeginTheta.sin;
-								float armEffectorBackCoreEndCosTheta = _internalValues.limbIK.armEffectorBackCoreEndTheta.cos;
-								float armEffectorBackEndCosTheta = _internalValues.limbIK.armEffectorBackEndTheta.cos;
-
-								// Based on localYZ
-								float armEffectorBackCoreUpperSinTheta = _internalValues.limbIK.armEffectorBackCoreUpperTheta.sin;
-								float armEffectorBackCoreLowerSinTheta = _internalValues.limbIK.armEffectorBackCoreLowerTheta.sin;
 
 								float elbowAngle = elbowBaseAngle;
 
-								Vector3 localXZ; // X is reversed in RightSide.
-								Vector3 localYZ;
-
 								Vector3 localDir = (_limbIKSide == Side.Left) ? localEffectorDir : new Vector3( -localEffectorDir.x, localEffectorDir.y, localEffectorDir.z );
-								_ComputeLocalDirXZ( ref localDir, out localXZ ); // Lefthand Based.
-								_ComputeLocalDirYZ( ref localDir, out localYZ ); // Lefthand Based.
 
 								if( localDir.y < 0.0f ) {
 									elbowAngle = Mathf.Lerp( elbowAngle, elbowLowerAngle, -localDir.y );
@@ -795,63 +778,83 @@ namespace SA
 									elbowAngle = Mathf.Lerp( elbowAngle, elbowUpperAngle, localDir.y );
 								}
 
-								if( localXZ.z < armEffectorBackBeginSinTheta &&
-									localXZ.x > armEffectorBackEndCosTheta ) {
+								if( _settings.limbIK.armEffectorBackfixEnabled ) {
+									float elbowBackUpperAngle = _settings.limbIK.automaticElbowBackUpperAngle;
+									float elbowBackLowerAngle = _settings.limbIK.automaticElbowBackLowerAngle;
 
-									float targetAngle;
-									if( localYZ.y >= armEffectorBackCoreUpperSinTheta ) {
-										targetAngle = elbowBackUpperAngle;
-									} else if( localYZ.y <= armEffectorBackCoreLowerSinTheta ) {
-										targetAngle = elbowBackLowerAngle;
-									} else {
-										float t = armEffectorBackCoreUpperSinTheta - armEffectorBackCoreLowerSinTheta;
-										if( t > IKEpsilon ) {
-											float r = (localYZ.y - armEffectorBackCoreLowerSinTheta) / t;
-											targetAngle = Mathf.Lerp( elbowBackLowerAngle, elbowBackUpperAngle, r );
-										} else {
+									// Based on localXZ
+									float armEffectorBackBeginSinTheta = _internalValues.limbIK.armEffectorBackBeginTheta.sin;
+									float armEffectorBackCoreBeginSinTheta = _internalValues.limbIK.armEffectorBackCoreBeginTheta.sin;
+									float armEffectorBackCoreEndCosTheta = _internalValues.limbIK.armEffectorBackCoreEndTheta.cos;
+									float armEffectorBackEndCosTheta = _internalValues.limbIK.armEffectorBackEndTheta.cos;
+
+									// Based on localYZ
+									float armEffectorBackCoreUpperSinTheta = _internalValues.limbIK.armEffectorBackCoreUpperTheta.sin;
+									float armEffectorBackCoreLowerSinTheta = _internalValues.limbIK.armEffectorBackCoreLowerTheta.sin;
+
+									Vector3 localXZ; // X is reversed in RightSide.
+									Vector3 localYZ;
+									_ComputeLocalDirXZ( ref localDir, out localXZ ); // Lefthand Based.
+									_ComputeLocalDirYZ( ref localDir, out localYZ ); // Lefthand Based.
+
+									if( localXZ.z < armEffectorBackBeginSinTheta &&
+										localXZ.x > armEffectorBackEndCosTheta ) {
+
+										float targetAngle;
+										if( localYZ.y >= armEffectorBackCoreUpperSinTheta ) {
+											targetAngle = elbowBackUpperAngle;
+										} else if( localYZ.y <= armEffectorBackCoreLowerSinTheta ) {
 											targetAngle = elbowBackLowerAngle;
-										}
-									}
-
-									if( localXZ.x < armEffectorBackCoreEndCosTheta ) {
-										float t = armEffectorBackCoreEndCosTheta - armEffectorBackEndCosTheta;
-										if( t > IKEpsilon ) {
-											float r = (localXZ.x - armEffectorBackEndCosTheta) / t;
-
-											if( localYZ.y <= armEffectorBackCoreLowerSinTheta ) {
-												elbowAngle = Mathf.Lerp( elbowAngle, targetAngle, r );
-											} else if( localYZ.y >= armEffectorBackCoreUpperSinTheta ) {
-												elbowAngle = Mathf.Lerp( elbowAngle, targetAngle - 360.0f, r );
+										} else {
+											float t = armEffectorBackCoreUpperSinTheta - armEffectorBackCoreLowerSinTheta;
+											if( t > IKEpsilon ) {
+												float r = (localYZ.y - armEffectorBackCoreLowerSinTheta) / t;
+												targetAngle = Mathf.Lerp( elbowBackLowerAngle, elbowBackUpperAngle, r );
 											} else {
-												float angle0 = Mathf.Lerp( elbowAngle, targetAngle, r ); // Lower
-												float angle1 = Mathf.Lerp( elbowAngle, targetAngle - 360.0f, r ); // Upper
-												float t2 = armEffectorBackCoreUpperSinTheta - armEffectorBackCoreLowerSinTheta;
-												if( t2 > IKEpsilon ) {
-													float r2 = (localYZ.y - armEffectorBackCoreLowerSinTheta) / t2;
-													if( angle0 - angle1 > 180.0f ) {
-														angle1 += 360.0f;
-													}
+												targetAngle = elbowBackLowerAngle;
+											}
+										}
 
-													elbowAngle = Mathf.Lerp( angle0, angle1, r2 );
-												} else { // Failsafe.
-													elbowAngle = angle0;
+										if( localXZ.x < armEffectorBackCoreEndCosTheta ) {
+											float t = armEffectorBackCoreEndCosTheta - armEffectorBackEndCosTheta;
+											if( t > IKEpsilon ) {
+												float r = (localXZ.x - armEffectorBackEndCosTheta) / t;
+
+												if( localYZ.y <= armEffectorBackCoreLowerSinTheta ) {
+													elbowAngle = Mathf.Lerp( elbowAngle, targetAngle, r );
+												} else if( localYZ.y >= armEffectorBackCoreUpperSinTheta ) {
+													elbowAngle = Mathf.Lerp( elbowAngle, targetAngle - 360.0f, r );
+												} else {
+													float angle0 = Mathf.Lerp( elbowAngle, targetAngle, r ); // Lower
+													float angle1 = Mathf.Lerp( elbowAngle, targetAngle - 360.0f, r ); // Upper
+													float t2 = armEffectorBackCoreUpperSinTheta - armEffectorBackCoreLowerSinTheta;
+													if( t2 > IKEpsilon ) {
+														float r2 = (localYZ.y - armEffectorBackCoreLowerSinTheta) / t2;
+														if( angle0 - angle1 > 180.0f ) {
+															angle1 += 360.0f;
+														}
+
+														elbowAngle = Mathf.Lerp( angle0, angle1, r2 );
+													} else { // Failsafe.
+														elbowAngle = angle0;
+													}
 												}
 											}
-										}
-									} else if( localXZ.z > armEffectorBackCoreBeginSinTheta ) {
-										float t = (armEffectorBackBeginSinTheta - armEffectorBackCoreBeginSinTheta);
-										if( t > IKEpsilon ) {
-											float r = (armEffectorBackBeginSinTheta - localXZ.z) / t;
-											if( localDir.y >= 0.0f ) {
-												elbowAngle = Mathf.Lerp( elbowAngle, targetAngle, r );
-											} else {
-												elbowAngle = Mathf.Lerp( elbowAngle, targetAngle - 360.0f, r );
+										} else if( localXZ.z > armEffectorBackCoreBeginSinTheta ) {
+											float t = (armEffectorBackBeginSinTheta - armEffectorBackCoreBeginSinTheta);
+											if( t > IKEpsilon ) {
+												float r = (armEffectorBackBeginSinTheta - localXZ.z) / t;
+												if( localDir.y >= 0.0f ) {
+													elbowAngle = Mathf.Lerp( elbowAngle, targetAngle, r );
+												} else {
+													elbowAngle = Mathf.Lerp( elbowAngle, targetAngle - 360.0f, r );
+												}
+											} else { // Failsafe.
+												elbowAngle = targetAngle;
 											}
-										} else { // Failsafe.
+										} else {
 											elbowAngle = targetAngle;
 										}
-									} else {
-										elbowAngle = targetAngle;
 									}
 								}
 
@@ -865,7 +868,7 @@ namespace SA
 
 								if( _automaticArmElbowTheta._degrees != elbowAngle ) {
 									_automaticArmElbowTheta._Reset( elbowAngle );
-                                }
+								}
 
 								bendingPos = beginPos + dirX * moveC
 									+ -dirY * moveS * _automaticArmElbowTheta.cos
@@ -934,7 +937,7 @@ namespace SA
 					}
 				}
 
-				if( isSolved && _limbIKType == LimbIKType.Arm ) {
+				if( isSolved && _limbIKType == LimbIKType.Arm && _settings.limbIK.armEffectorInnerfixEnabled ) {
 					float elbowFrontInnerLimitSinTheta = _internalValues.limbIK.elbowFrontInnerLimitTheta.sin;
 					float elbowBackInnerLimitSinTheta = _internalValues.limbIK.elbowBackInnerLimitTheta.sin;
 

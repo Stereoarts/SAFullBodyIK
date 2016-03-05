@@ -169,10 +169,6 @@ namespace SA
 
 				public float upperCenterLegTranslateRate = 0.5f;
 				public float upperSpineTranslateRate = 0.6f;
-
-				public float upperPreTranslateRate = 0.2f;			// Legacy
-				//public float upperCenterLegRotateRate = 0.673f;
-				//public float upperSpineRotateRate = 0.775f;
 				public float upperCenterLegRotateRate = 0.6f;
 				public float upperSpineRotateRate = 0.9f;
 				public float upperPostTranslateRate = 1.0f;
@@ -238,6 +234,9 @@ namespace SA
 				public bool armBasisForcefixEnabled = true;
 				public float armBasisForcefixEffectorLengthRate = 0.99f;
 				public float armBasisForcefixEffectorLengthLerpRate = 0.03f;
+
+				public bool armEffectorBackfixEnabled = true;
+				public bool armEffectorInnerfixEnabled = true;
 
 				// Arm back area.(Automatic only, Based on localXZ)
 				public float armEffectorBackBeginAngle = 5.0f;
@@ -415,9 +414,6 @@ namespace SA
 						upperSpineTranslateRate._Reset( Mathf.Max( settingsBodyIK.upperCenterLegTranslateRate, settingsBodyIK.upperSpineTranslateRate ) );
 					}
 
-					if( upperPreTranslateRate._value != settingsBodyIK.upperPreTranslateRate ) {
-						upperPreTranslateRate._Reset( settingsBodyIK.upperPreTranslateRate );
-					}
 					if( upperPostTranslateRate._value != settingsBodyIK.upperPostTranslateRate ) {
 						upperPostTranslateRate._Reset( settingsBodyIK.upperPostTranslateRate );
 					}
@@ -1324,16 +1320,17 @@ namespace SA
 				for( int i = 0; i != effectorLength; ++i ) {
 					if( _effectors[i] != null ) {
 						_effectors[i]._hidden_worldPosition = _effectors[i].worldPosition;
-
 						if( internalValues.animatorEnabled && !internalValues.resetTransforms ) {
 							if( _effectors[i].positionEnabled && _effectors[i].positionWeight < 1.0f - IKEpsilon ) {
 								float weight = (_effectors[i].positionWeight > IKEpsilon) ? _effectors[i].positionWeight : 0.0f;
-								if( _effectors[i].bone != null && _effectors[i].bone.transformIsAlive ) {
-									_effectors[i]._hidden_worldPosition = Vector3.Lerp( _effectors[i].bone.worldPosition, _effectors[i].worldPosition, weight );
+								if( weight == 0.0f ) {
+									_effectors[i]._hidden_worldPosition = _effectors[i].bone_worldPosition;
+								} else {
+									_effectors[i]._hidden_worldPosition = Vector3.Lerp( _effectors[i].bone_worldPosition, _effectors[i].worldPosition, weight );
 								}
 							} else if( !_effectors[i].positionEnabled ) {
 								if( _effectors[i].bone != null && _effectors[i].bone.transformIsAlive ) {
-									_effectors[i]._hidden_worldPosition = _effectors[i].bone.worldPosition;
+									_effectors[i]._hidden_worldPosition = _effectors[i].bone_worldPosition;
 								}
 							}
 						}

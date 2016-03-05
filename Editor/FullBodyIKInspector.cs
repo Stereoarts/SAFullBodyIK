@@ -296,6 +296,10 @@ namespace SA
 				EditorUtil.GUI.Slider01( "Arm Basis Forcefix Effector Length Rate", ref settings.limbIK.armBasisForcefixEffectorLengthRate );
 				EditorUtil.GUI.Slider01( "Arm Basis Forcefix Effector Length Lerp Rate", ref settings.limbIK.armBasisForcefixEffectorLengthLerpRate );
 
+				GUILayout.Label( "Arm effector fixes(Automatic)", _guiStyle_section );
+				EditorUtil.GUI.Field( "Arm Effector Backfix Enabled", ref settings.limbIK.armEffectorBackfixEnabled );
+				EditorUtil.GUI.Field( "Arm Effector Innerfix Enabled", ref settings.limbIK.armEffectorInnerfixEnabled );
+
 				GUILayout.Label( "Arm back area(Automatic, XZ)", _guiStyle_section );
 				EditorUtil.GUI.Slider( "Arm Effector Back Begin Angle", ref settings.limbIK.armEffectorBackBeginAngle, -90.00f, 45.0f );
 				EditorUtil.GUI.Slider( "Arm Effector Back Core Begin Angle", ref settings.limbIK.armEffectorBackCoreBeginAngle, -90.00f, 45.0f );

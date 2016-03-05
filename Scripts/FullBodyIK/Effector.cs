@@ -97,6 +97,8 @@ namespace SA
 			bool _isWrittenWorldPosition = false;
 			bool _isWrittenWorldRotation = false;
 
+			bool _isLegacyEyes = false;
+
 			int _transformIsAlive = -1;
 
 			public string name {
@@ -208,7 +210,10 @@ namespace SA
 			{
 				switch( effectorType ) {
 				case EffectorType.Hips:		return _EffectorFlags.RotationContained | _EffectorFlags.PullContained;
+				case EffectorType.Neck:		return _EffectorFlags.PullContained;
 				case EffectorType.Head:		return _EffectorFlags.RotationContained;
+				case EffectorType.Eyes:		return _EffectorFlags.PullContained;
+				case EffectorType.Arm:		return _EffectorFlags.PullContained;
 				case EffectorType.Wrist:	return _EffectorFlags.RotationContained | _EffectorFlags.PullContained;
 				case EffectorType.Foot:		return _EffectorFlags.RotationContained | _EffectorFlags.PullContained;
 				}
@@ -306,8 +311,8 @@ namespace SA
 					}
 				} else if( _effectorType == EffectorType.Eyes ) {
 					Assert( _bone != null );
-					bool isLegacy = (fullBodyIK.settings.modelTemplate == ModelTemplate.UnityChan);
-					if( !isLegacy && _bone != null && _bone.transformIsAlive &&
+					_isLegacyEyes = ( fullBodyIK.settings.modelTemplate == ModelTemplate.UnityChan);
+					if( !_isLegacyEyes && _bone != null && _bone.transformIsAlive &&
 						_leftBone != null && _leftBone.transformIsAlive &&
 						_rightBone != null && _rightBone.transformIsAlive ) {
 						// _bone ... Head / _leftBone ... LeftEye / _rightBone ... RightEye
@@ -373,7 +378,27 @@ namespace SA
 
 			public Vector3 bone_worldPosition {
 				get {
-					if( _isSimulateFingerTips ) {
+					if( _effectorType == EffectorType.Eyes ) {
+						if( !_isLegacyEyes && _bone != null && _bone.transformIsAlive &&
+							_leftBone != null && _leftBone.transformIsAlive &&
+							_rightBone != null && _rightBone.transformIsAlive ) {
+							// _bone ... Head / _leftBone ... LeftEye / _rightBone ... RightEye
+							return (_leftBone.worldPosition + _rightBone.worldPosition) * 0.5f;
+						} else if( _bone != null && _bone.transformIsAlive ) {
+							Vector3 currentPosition = _bone.worldPosition;
+							// _bone ... Head / _bone.parentBone ... Neck
+							if( _bone.parentBone != null && _bone.parentBone.transformIsAlive && _bone.parentBone.boneType == BoneType.Neck ) {
+								Vector3 neckToHead = _bone._defaultPosition - _bone.parentBone._defaultPosition;
+								float neckToHeadY = (neckToHead.y > 0.0f) ? neckToHead.y : 0.0f;
+								Quaternion parentBaseRotation = (_bone.parentBone.worldRotation * _bone.parentBone._worldToBaseRotation);
+								Matrix3x3 parentBaseBasis;
+								SAFBIKMatSetRot( out parentBaseBasis, ref parentBaseRotation );
+								currentPosition += parentBaseBasis.column1 * neckToHeadY;
+								currentPosition += parentBaseBasis.column2 * neckToHeadY;
+							}
+							return currentPosition;
+						}
+					} else if( _isSimulateFingerTips ) {
 						if( _bone != null &&
 							_bone.parentBoneLocationBased != null &&
 							_bone.parentBoneLocationBased.transformIsAlive &&
@@ -411,9 +436,9 @@ namespace SA
 
 			public void WriteToTransform()
 			{
-				#if _FORCE_CANCEL_FEEDBACK_WORLDTRANSFORM
+#if _FORCE_CANCEL_FEEDBACK_WORLDTRANSFORM
 				// Nothing.
-				#else
+#else
 				if( _isWrittenWorldPosition ) {
 					_isWrittenWorldPosition = false; // Turn off _isWrittenWorldPosition
 					if( this.transformIsAlive ) {
@@ -426,7 +451,7 @@ namespace SA
 						this.transform.rotation = _worldRotation;
 					}
 				}
-				#endif
+#endif
 			}
 		}
 	}
