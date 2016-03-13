@@ -158,7 +158,9 @@ namespace SA
 				public bool computeWorldTransform = true;
 
 				public bool shoulderSolveEnabled = true;
-				public bool shoulderLimitEnabled = true;
+				public bool shoulderAccurateSolveEnabled = true;
+				public float shoulderBendingFeedbackRate = 0.25f;
+                public bool shoulderLimitEnabled = true;
 				public float shoulderLimitAngleYPlus = 30.0f;
 				public float shoulderLimitAngleYMinus = 1.0f;
 				public float shoulderLimitAngleZ = 30.0f;
@@ -183,7 +185,7 @@ namespace SA
 				public float upperSpineLerpRate = 1.0f;
 
 				public bool spineLimitEnabled = true;
-				public bool spineLimitAccurateEnabled = false;
+				public bool spineAccurateLimitEnabled = false;
 				public float spineLimitAngleX = 40.0f;
 				public float spineLimitAngleY = 20.0f;
 
@@ -1178,8 +1180,6 @@ namespace SA
 				}
 			}
 
-			_bodyIK = new BodyIK( this );
-
 			if( _limbIK == null || _limbIK.Length != (int)LimbIKLocation.Max ) {
 				_limbIK = new LimbIK[(int)LimbIKLocation.Max];
 			}
@@ -1188,6 +1188,7 @@ namespace SA
 				_limbIK[i] = new LimbIK( this, (LimbIKLocation)i );
 			}
 
+			_bodyIK = new BodyIK( this, _limbIK );
 			_headIK = new HeadIK( this );
 
 			if( _fingerIK == null || _fingerIK.Length != (int)FingerIKType.Max ) {

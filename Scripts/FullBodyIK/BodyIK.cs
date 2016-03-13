@@ -15,6 +15,8 @@ namespace SA
 	{
 		public class BodyIK
 		{
+			LimbIK[] _limbIK; // for UpperSolve. (Presolve Shoulder / Elbow)
+
 			Bone _hipsBone; // Null accepted.
 			Bone[] _spineBones; // Null accepted.
 			bool[] _spineEnabled; // Null accepted.
@@ -43,7 +45,7 @@ namespace SA
 			Matrix3x3 _centerLegBoneBasis = Matrix3x3.identity;
 			Matrix3x3 _centerLegBoneBasisInv = Matrix3x3.identity;
 
-			Matrix3x3 _centerLegToArmBasis = Matrix3x3.identity;        // dirX = legPos[1] - legPos[0], dirY = centerArmPos - centerLegPos
+			Matrix3x3 _centerLegToArmBasis = Matrix3x3.identity;        // dirX = armPos[1] - armPos[0] or shoulderPos[1] - shoulderPos[0], dirY = centerArmPos - centerLegPos
 			Matrix3x3 _centerLegToArmBasisInv = Matrix3x3.identity;     // _centerLegToArmBasis.transpose
 			Matrix3x3 _centerLegToArmBoneToBaseBasis = Matrix3x3.identity;
 			Matrix3x3 _centerLegToArmBaseToBoneBasis = Matrix3x3.identity;
@@ -57,6 +59,10 @@ namespace SA
 
 			public class SolverCaches
 			{
+				public Bone[] armBones;
+				public Bone[] shoulderBones;
+				public Bone[] nearArmBones;
+
 				public float nearArmToNearArmLen;
 				public float[] shoulderToArmLength;
 				public float[] nearArmToNeckLength = new float[2];
@@ -64,6 +70,13 @@ namespace SA
 				public float[] wristPull = new float[2];
 				public float[] armPull = new float[2];
 				public float neckPull = 0.0f;
+
+				public Matrix3x3 centerLegToNearArmBasis = Matrix3x3.identity; // dirX = armPos[1] - armPos[0] or shoulderPos[1] - shoulderPos[0], dirY = centerArmPos - centerLegPos
+				public Matrix3x3 centerLegToNearArmBasisInv = Matrix3x3.identity; // centerLegToNearArmBasis.transpose
+				public Matrix3x3 centerLegToNaerArmBoneToBaseBasis = Matrix3x3.identity;
+				public Matrix3x3 centerLegToNaerArmBaseToBoneBasis = Matrix3x3.identity;
+
+				public Vector3 defaultCenterLegPos = Vector3.zero;
 			}
 
 			SolverCaches _solverCaches = new SolverCaches();
@@ -82,9 +95,11 @@ namespace SA
 			Settings _settings;
 			InternalValues _internalValues;
 
-			public BodyIK( FullBodyIK fullBodyIK )
+			public BodyIK( FullBodyIK fullBodyIK, LimbIK[] limbIK )
 			{
 				Assert( fullBodyIK != null );
+
+				_limbIK = limbIK;
 
 				_settings = fullBodyIK.settings;
 				_internalValues = fullBodyIK.internalValues;
@@ -214,17 +229,27 @@ namespace SA
 					}
 
 					// _defaultCenterArmPos, _centerLegToArmBasis, _centerLegToArmBasisInv, _centerLegToArmBoneToBaseBasis, _centerLegToArmBaseToBoneBasis
+
 					if( _nearArmBones != null ) {
 						_defaultCenterArmPos = (_nearArmBones[1]._defaultPosition + _nearArmBones[0]._defaultPosition) * 0.5f;
 
 						Vector3 dirX = _nearArmBones[1]._defaultPosition - _nearArmBones[0]._defaultPosition;
 						Vector3 dirY = _defaultCenterArmPos - _defaultCenterLegPos;
 						if( SAFBIKVecNormalize( ref dirY ) && SAFBIKComputeBasisFromXYLockY( out _centerLegToArmBasis, ref dirX, ref dirY ) ) {
-							_centerLegToArmBasisInv = _centerLegToArmBasis.transpose;
+                            _centerLegToArmBasisInv = _centerLegToArmBasis.transpose;
 							SAFBIKMatMult( out _centerLegToArmBoneToBaseBasis, ref _centerLegToArmBasisInv, ref _internalValues.defaultRootBasis );
 							_centerLegToArmBaseToBoneBasis = _centerLegToArmBoneToBaseBasis.transpose;
 						}
 					}
+
+					_solverCaches.armBones = _armBones;
+					_solverCaches.shoulderBones = _shoulderBones;
+					_solverCaches.nearArmBones = _nearArmBones;
+					_solverCaches.centerLegToNearArmBasis = _centerLegToArmBasis;
+					_solverCaches.centerLegToNearArmBasisInv = _centerLegToArmBasisInv;
+					_solverCaches.centerLegToNaerArmBoneToBaseBasis = _centerLegToArmBoneToBaseBasis;
+					_solverCaches.centerLegToNaerArmBaseToBoneBasis = _centerLegToArmBaseToBoneBasis;
+					_solverCaches.defaultCenterLegPos = _defaultCenterLegPos;
 
 					_defaultCenterLegToCeterArmLen = SAFBIKVecLength2( ref _defaultCenterLegPos, ref _defaultCenterArmPos );
 
@@ -371,6 +396,10 @@ namespace SA
 					_LowerSolve( false );
 				}
 
+				if( _settings.bodyIK.shoulderSolveEnabled && _settings.bodyIK.shoulderAccurateSolveEnabled ) {
+					_ShoulderAccurateSolve();
+				}
+
 				if( _settings.bodyIK.computeWorldTransform ) {
 					_ComputeWorldTransform();
 				}
@@ -506,7 +535,7 @@ namespace SA
 					float spineLimitAngleX = _internalValues.bodyIK.spineLimitAngleX.value;
 					float spineLimitAngleY = _internalValues.bodyIK.spineLimitAngleY.value;
 
-					if( _settings.bodyIK.spineLimitAccurateEnabled ) { // Quaternion lerp.
+					if( _settings.bodyIK.spineAccurateLimitEnabled ) { // Quaternion lerp.
 						float fromToX = Vector3.Dot( centerArmDirX, centerArmDirX2 );
 						float fromToXAng = SAFBIKAcos( fromToX );
 						if( fromToXAng > spineLimitAngleX ) {
@@ -800,6 +829,13 @@ namespace SA
 				_UpperSolve_ShoulderToArm();
 				return true;
 			}
+
+			void _ShoulderAccurateSolve()
+			{
+				var temp = _solverInternal;
+				Assert( temp != null );
+				temp.ShoulderAccurateSolve();
+            }
 
 			void _UpperSolve_PresolveBaseCenterLegTransform( out Vector3 centerLegPos, out Matrix3x3 centerLegBasis )
 			{
@@ -1132,6 +1168,11 @@ namespace SA
 					_solverInternal._armEffectors = _armEffectors;
 					_solverInternal._wristEffectors = _wristEffectors; // test.
 					_solverInternal._neckEffector = _neckEffector; // test.
+					_solverInternal._spineBones = _spineBones;
+					_solverInternal._shoulderBones = _shoulderBones;
+					_solverInternal._armBones = _armBones;
+                    _solverInternal._armLimbIK[0] = _limbIK[(int)LimbIKLocation.LeftArm];
+					_solverInternal._armLimbIK[1] = _limbIK[(int)LimbIKLocation.RightArm];
 					_solverInternal._centerLegBoneBasisInv = this._centerLegBoneBasisInv;
 					if( _spineUBone != null ) {
 						if( _shoulderBones != null || _armBones != null ) {
@@ -1218,27 +1259,13 @@ namespace SA
 			void _UpperSolve_ShoulderToArm( bool isArmEffectorOnly = false )
 			{
 				for( int i = 0; i < 2; ++i ) {
-					_solverInternal.SolveShoulderToArm(
-						i,
-						_shoulderBones,
-						_shoulderToArmLength,
-						_internalValues.bodyIK.shoulderLimitThetaYPlus.sin,
-						_internalValues.bodyIK.shoulderLimitThetaYMinus.sin,
-						_internalValues.bodyIK.shoulderLimitThetaZ.sin,
-						isArmEffectorOnly );
+					_solverInternal.SolveShoulderToArm( i, isArmEffectorOnly );
 				}
 			}
 
 			void _UpperSolve_ShoulderToArm( int i, bool isArmEffectorOnly = false )
 			{
-				_solverInternal.SolveShoulderToArm(
-					i,
-					_shoulderBones,
-					_shoulderToArmLength,
-					_internalValues.bodyIK.shoulderLimitThetaYPlus.sin,
-					_internalValues.bodyIK.shoulderLimitThetaYMinus.sin,
-					_internalValues.bodyIK.shoulderLimitThetaZ.sin,
-					isArmEffectorOnly );
+				_solverInternal.SolveShoulderToArm( i, isArmEffectorOnly );
 			}
 
 			void _PresolveHips()
@@ -1542,6 +1569,10 @@ namespace SA
 				public bool[] _shouderLocalAxisYInv;
 				public Effector[] _armEffectors;
 				public Effector _neckEffector;
+
+				public Bone[] _spineBones;
+				public Bone[] _shoulderBones;
+				public Bone[] _armBones;
 
 				public Limb arms = new Limb();
 				public Limb legs = new Limb();
@@ -2058,6 +2089,99 @@ namespace SA
 					return true;
 				}
 
+				Vector3[] _tempArmPos = new Vector3[2];
+				Vector3[] _tempArmToElbowDir = new Vector3[2];
+				Vector3[] _tempElbowToWristDir = new Vector3[2];
+				bool[] _tempElbowPosEnabled = new bool[2];
+				public LimbIK[] _armLimbIK = new LimbIK[2];
+
+				Matrix3x3[] _tempParentBasis = new Matrix3x3[2] { Matrix3x3.identity, Matrix3x3.identity };
+				Vector3[] _tempArmToElbowDefaultDir = new Vector3[2];
+
+				public bool ShoulderAccurateSolve()
+				{
+					Bone[] armBones = _solverCaches.armBones;
+					Bone[] shoulderBones = _solverCaches.shoulderBones;
+					float[] shoulderToArmLength = _solverCaches.shoulderToArmLength;
+					if( armBones == null || shoulderBones == null ) {
+						return false;
+					}
+
+					Assert( shoulderToArmLength != null );
+					Assert( _armLimbIK != null );
+
+					if( !_armLimbIK[0].IsSolverEnabled() && !_armLimbIK[1].IsSolverEnabled() ) {
+						return false; // Not required.
+					}
+
+					for( int i = 0; i != 2; ++i ) {
+						if( _armLimbIK[i].IsSolverEnabled() ) {
+							Vector3 xDir, yDir, zDir;
+							xDir = this.armPos[i] - this.shoulderPos[i];
+							if( internalValues.shoulderDirYAsNeck != 0 ) {
+								yDir = this.neckPos - this.shoulderPos[i];
+							} else {
+								yDir = this.shoulderPos[i] - this.spineUPos;
+							}
+							xDir = (i == 0) ? -xDir : xDir;
+							zDir = Vector3.Cross( xDir, yDir );
+							yDir = Vector3.Cross( zDir, xDir );
+							if( SAFBIKVecNormalize3( ref xDir, ref yDir, ref zDir ) ) {
+								Matrix3x3 boneBasis = Matrix3x3.FromColumn( ref xDir, ref yDir, ref zDir );
+								SAFBIKMatMult( out _tempParentBasis[i], ref boneBasis, ref _shoulderBones[i]._boneToBaseBasis );
+							}
+
+							_tempArmPos[i] = this.armPos[i];
+							_tempElbowPosEnabled[i] = _armLimbIK[i].Presolve(
+								ref _tempParentBasis[i],
+								ref _tempArmPos[i],
+								out _tempArmToElbowDir[i],
+								out _tempElbowToWristDir[i] );
+
+							if( _tempElbowPosEnabled[i] ) {
+								SAFBIKMatMultCol0( out _tempArmToElbowDefaultDir[i], ref _tempParentBasis[i], ref _armBones[i]._baseToBoneBasis );
+								if( i == 0 ) {
+									_tempArmToElbowDefaultDir[i] = -_tempArmToElbowDefaultDir[i];
+								}
+							}
+						}
+					}
+
+					if( !_tempElbowPosEnabled[0] && !_tempElbowPosEnabled[1] ) {
+						return false; // Not required.
+					}
+
+					float feedbackRate = settings.bodyIK.shoulderBendingFeedbackRate;
+
+					bool updateAnything = false;
+					for( int i = 0; i != 2; ++i ) {
+						if( _tempElbowPosEnabled[i] ) {
+							float theta;
+							Vector3 axis;
+							_ComputeThetaAxis( ref _tempArmToElbowDefaultDir[i], ref _tempArmToElbowDir[i], out theta, out axis );
+							if( theta >= -FLOAT_EPSILON && theta <= FLOAT_EPSILON ) {
+								// Nothing.
+							} else {
+								updateAnything = true;
+								theta = SAFBIKCos( SAFBIKAcos( theta ) * feedbackRate );
+								Matrix3x3 m = new Matrix3x3();
+								SAFBIKMatSetAxisAngle( out m, ref axis, theta );
+
+								Vector3 tempShoulderPos = this.shoulderPos[i];
+								Vector3 tempDir = _tempArmPos[i] - tempShoulderPos;
+								SAFBIKVecNormalize( ref tempDir );
+								Vector3 resultDir;
+								SAFBIKMatMultVec( out resultDir, ref m, ref tempDir );
+								Vector3 destArmPos = tempShoulderPos + resultDir * shoulderToArmLength[i];
+
+								SolveShoulderToArmInternal( i, ref destArmPos );
+							}
+						}
+					}
+
+					return updateAnything;
+				}
+
 				public bool PrepareLowerRotation( int origIndex )
 				{
 					bool r = false;
@@ -2332,16 +2456,19 @@ namespace SA
 					}
 				}
 
-				public void SolveShoulderToArm(
-					int i,
-					Bone[] shoulderBones,
-					float[] shoulderToArmLength,
-					float limitYPlus,
-					float limitYMinus,
-					float limitZ,
-					bool isArmEffectorOnly )
+				public void SolveShoulderToArmInternal( int i, ref Vector3 destArmPos )
 				{
 					if( !settings.bodyIK.shoulderSolveEnabled ) {
+						return;
+					}
+
+					Bone[] shoulderBones = _solverCaches.shoulderBones;
+					float[] shoulderToArmLength = _solverCaches.shoulderToArmLength;
+					float limitYPlus = internalValues.bodyIK.shoulderLimitThetaYPlus.sin;
+					float limitYMinus = internalValues.bodyIK.shoulderLimitThetaYMinus.sin;
+					float limitZ = internalValues.bodyIK.shoulderLimitThetaZ.sin;
+
+					if( shoulderBones == null ) {
 						return;
 					}
 
@@ -2349,6 +2476,28 @@ namespace SA
 						float t = limitYPlus;
 						limitYPlus = limitYMinus;
 						limitYMinus = t;
+					}
+
+					if( !IsFuzzy( ref armPos[i], ref destArmPos ) ) {
+						Vector3 dirX = destArmPos - this.shoulderPos[i];
+						if( SAFBIKVecNormalize( ref dirX ) ) {
+							if( settings.bodyIK.shoulderLimitEnabled ) {
+								Matrix3x3 worldBasis = this.spineUBasis;
+								SAFBIKMatMultRet0( ref worldBasis, ref shoulderBones[i]._localAxisBasis );
+								SAFBIKMatMultVecInv( out dirX, ref worldBasis, ref dirX );
+								_LimitYZ_Square( i != 0, ref dirX, limitYMinus, limitYPlus, limitZ, limitZ );
+								SAFBIKMatMultVec( out dirX, ref worldBasis, ref dirX );
+							}
+
+							this.armPos[i] = this.shoulderPos[i] + dirX * shoulderToArmLength[i];
+						}
+					}
+				}
+
+				public void SolveShoulderToArm( int i, bool isArmEffectorOnly )
+				{
+					if( !settings.bodyIK.shoulderSolveEnabled ) {
+						return;
 					}
 
 					if( this.shoulderPos != null ) {
@@ -2375,20 +2524,7 @@ namespace SA
 						}
 
 						if( destArmPosEnabled ) {
-							if( !IsFuzzy( ref armPos[i], ref destArmPos ) ) {
-								Vector3 dirX = destArmPos - this.shoulderPos[i];
-								if( SAFBIKVecNormalize( ref dirX ) ) {
-									if( settings.bodyIK.shoulderLimitEnabled ) {
-										Matrix3x3 worldBasis = this.spineUBasis;
-										SAFBIKMatMultRet0( ref worldBasis, ref shoulderBones[i]._localAxisBasis );
-										SAFBIKMatMultVecInv( out dirX, ref worldBasis, ref dirX );
-										_LimitYZ_Square( i != 0, ref dirX, limitYMinus, limitYPlus, limitZ, limitZ );
-										SAFBIKMatMultVec( out dirX, ref worldBasis, ref dirX );
-									}
-
-									this.armPos[i] = this.shoulderPos[i] + dirX * shoulderToArmLength[i];
-								}
-							}
+							SolveShoulderToArmInternal( i, ref destArmPos );
 						}
 					}
 				}

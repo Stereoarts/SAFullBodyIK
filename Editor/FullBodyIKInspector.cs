@@ -213,6 +213,8 @@ namespace SA
 				EditorUtil.GUI.Field( "Compute World Transform", ref settings.bodyIK.computeWorldTransform );
 
 				EditorUtil.GUI.Field( "Shoulder Solve Enabled", ref settings.bodyIK.shoulderSolveEnabled );
+				EditorUtil.GUI.Field( "Shoulder Accurate Solve Enabled", ref settings.bodyIK.shoulderAccurateSolveEnabled );
+				EditorUtil.GUI.Slider( "Shoulder Bending Feedback Rate", ref settings.bodyIK.shoulderBendingFeedbackRate, 0.0f, 1.0f );
 				EditorUtil.GUI.Field( "Shoulder Limit Enabled", ref settings.bodyIK.shoulderLimitEnabled );
 				EditorUtil.GUI.Field( "Shoulder Limit Angle YPlus", ref settings.bodyIK.shoulderLimitAngleYPlus );
 				EditorUtil.GUI.Field( "Shoulder Limit Angle YMinus", ref settings.bodyIK.shoulderLimitAngleYMinus );
@@ -230,7 +232,6 @@ namespace SA
 
 				EditorUtil.GUI.Slider01( "Upper CenterLeg Translate Rate", ref settings.bodyIK.upperCenterLegTranslateRate );
 				EditorUtil.GUI.Slider01( "Upper Spine Translate Rate", ref settings.bodyIK.upperSpineTranslateRate );
-				//EditorUtil.GUI.Slider01( "Upper PreTranslate Rate", ref settings.bodyIK.upperPreTranslateRate );
 				EditorUtil.GUI.Slider01( "Upper CenterLeg Rotate Rate", ref settings.bodyIK.upperCenterLegRotateRate );
 				EditorUtil.GUI.Slider01( "Upper Spine Rotate Rate", ref settings.bodyIK.upperSpineRotateRate );
 				EditorUtil.GUI.Slider01( "Upper PostTranslate Rate", ref settings.bodyIK.upperPostTranslateRate );
@@ -239,7 +240,7 @@ namespace SA
 
 				GUILayout.Label( "Spine", _guiStyle_section );
 				EditorUtil.GUI.Field( "Spine Limit Enabled", ref settings.bodyIK.spineLimitEnabled );
-				EditorUtil.GUI.Field( "Spine Limit Accurate Enabled", ref settings.bodyIK.spineLimitAccurateEnabled );
+				EditorUtil.GUI.Field( "Spine Accurate Limit Enabled", ref settings.bodyIK.spineAccurateLimitEnabled );
 				EditorUtil.GUI.Slider( "Spine Limit Angle X", ref settings.bodyIK.spineLimitAngleX, 0.0f, 89.99f );
 				EditorUtil.GUI.Slider( "Spine Limit Angle Y", ref settings.bodyIK.spineLimitAngleY, 0.0f, 89.99f );
 

@@ -922,6 +922,11 @@ namespace SA
 
 		public static void SAFBIKMatSetAxisAngle( out Matrix3x3 m, ref Vector3 axis, float cos )
 		{
+			if( cos >= -FLOAT_EPSILON && cos <= FLOAT_EPSILON ) {
+				m = Matrix3x3.identity;
+				return;
+			}
+
 			m = new Matrix3x3();
 
 			float sin = 1.0f - cos * cos;
@@ -1800,6 +1805,8 @@ namespace SA
 			out float theta,
 			out Vector3 axis )
 		{
+			CheckNormalized( dirFrom );
+			CheckNormalized( dirTo );
 			axis = Vector3.Cross( dirFrom, dirTo );
 			if( !SAFBIKVecNormalize( ref axis ) ) {
 				theta = 0.0f;
