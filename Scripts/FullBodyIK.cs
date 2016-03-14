@@ -158,8 +158,8 @@ namespace SA
 				public bool computeWorldTransform = true;
 
 				public bool shoulderSolveEnabled = true;
-				public bool shoulderAccurateSolveEnabled = true;
-				public float shoulderBendingFeedbackRate = 0.25f;
+				public bool shoulderResolveEnabled = true;
+				public float shoulderResolveBendingRate = 0.25f;
                 public bool shoulderLimitEnabled = true;
 				public float shoulderLimitAngleYPlus = 30.0f;
 				public float shoulderLimitAngleYMinus = 1.0f;
@@ -1152,7 +1152,7 @@ namespace SA
 				internalValues.defaultRootBasisInv = internalValues.defaultRootBasis.transpose;
 				internalValues.defaultRootRotation = rootTransform.rotation;
 			}
-
+			
 			if( _bones != null ) {
 				int boneLength = _bones.Length;
 				for( int i = 0; i != boneLength; ++i ) {
@@ -1311,7 +1311,13 @@ namespace SA
 				int effectorLength = _effectors.Length;
 				for( int i = 0; i != effectorLength; ++i ) {
 					if( _effectors[i] != null ) {
-						_effectors[i]._hidden_worldPosition = _effectors[i].worldPosition;
+						if( _effectors[i].positionEnabled ) {
+							_effectors[i]._hidden_worldPosition = _effectors[i].worldPosition;
+						} else {
+							if( _effectors[i].bone != null ) {
+								_effectors[i]._hidden_worldPosition = _effectors[i].bone.worldPosition;
+							}
+						}
 						if( internalValues.animatorEnabled && !internalValues.resetTransforms ) {
 							if( _effectors[i].positionEnabled && _effectors[i].positionWeight < 1.0f - IKEpsilon ) {
 								float weight = (_effectors[i].positionWeight > IKEpsilon) ? _effectors[i].positionWeight : 0.0f;

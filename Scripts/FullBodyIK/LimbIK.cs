@@ -603,19 +603,8 @@ namespace SA
 				solvedBeginToBendingDir = Vector3.zero;
 				solvedBendingToEndDir = Vector3.zero;
 
-				Vector3 bendingPos;
-				if( _bendingEffector.positionEnabled ) {
-					bendingPos = _bendingEffector._hidden_worldPosition;
-				} else {
-					bendingPos = _bendingBone.worldPosition;
-				}
-
-				Vector3 effectorPos;
-				if( _endEffector.positionEnabled ) {
-					effectorPos = _endEffector._hidden_worldPosition;
-				} else {
-					effectorPos = _endEffector.worldPosition;
-                }
+				Vector3 bendingPos = _bendingEffector._hidden_worldPosition;
+				Vector3 effectorPos = _endEffector._hidden_worldPosition;
 
 				Matrix3x3 parentBaseBasisInv = parentBaseBasis.transpose;
 

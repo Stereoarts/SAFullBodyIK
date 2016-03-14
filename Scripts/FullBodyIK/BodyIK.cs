@@ -360,7 +360,7 @@ namespace SA
 				if( temp.spinePos != null ) {
 					for( int i = 0; i < temp.spinePos.Length; ++i ) {
 						temp.spinePos[i] = _spineBones[i].worldPosition;
-                    }
+					}
 				}
 				if( neckEnabled ) {
 					temp.neckPos = _neckBone.worldPosition;
@@ -379,6 +379,12 @@ namespace SA
 					_PresolveHips();
 				}
 
+				if( !_internalValues.resetTransforms ) {
+					if( _settings.bodyIK.shoulderSolveEnabled && _settings.bodyIK.shoulderResolveEnabled ) {
+						_ResetShoulderTransform();
+					}
+				}
+
 #if SAFULLBODYIK_DEBUG
 				bool _isVisibleWorldTransform = true;
 				_internalValues.UpdateDebugValue( "_isVisibleWorldTransform", ref _isVisibleWorldTransform );
@@ -389,15 +395,15 @@ namespace SA
 				}
 
 				if( _settings.bodyIK.upperSolveEnabled ) {
-					_UpperSolve2();
+					_UpperSolve();
 				}
 
 				if( _settings.bodyIK.lowerSolveEnabled ) {
 					_LowerSolve( false );
 				}
 
-				if( _settings.bodyIK.shoulderSolveEnabled && _settings.bodyIK.shoulderAccurateSolveEnabled ) {
-					_ShoulderAccurateSolve();
+				if( _settings.bodyIK.shoulderSolveEnabled && _settings.bodyIK.shoulderResolveEnabled ) {
+					_ShoulderResolve();
 				}
 
 				if( _settings.bodyIK.computeWorldTransform ) {
@@ -432,10 +438,11 @@ namespace SA
 			Vector3[] _tempShoulderPos2 = new Vector3[2];
 			float[] _tempShoulderToArmWeight = new float[2];
 
-			bool _UpperSolve2()
+			bool _UpperSolve()
 			{
 				var temp = _solverInternal;
-				if( temp == null || temp.spinePos == null || temp.spinePos.Length == 0 || _wristEffectors == null ) {
+				Assert( temp != null );
+				if( temp.spinePos == null || temp.spinePos.Length == 0 || _wristEffectors == null ) {
 					return false; // No moved.
 				}
 
@@ -830,11 +837,11 @@ namespace SA
 				return true;
 			}
 
-			void _ShoulderAccurateSolve()
+			void _ShoulderResolve()
 			{
 				var temp = _solverInternal;
 				Assert( temp != null );
-				temp.ShoulderAccurateSolve();
+				temp.ShoulderResolve();
             }
 
 			void _UpperSolve_PresolveBaseCenterLegTransform( out Vector3 centerLegPos, out Matrix3x3 centerLegBasis )
@@ -1397,6 +1404,44 @@ namespace SA
 
 				temp.SetDirtyVariables();
 				temp._SetCenterLegPos( ref centerLegPos ); // Optimized.
+			}
+
+			// for ShoulderResolve
+			void _ResetShoulderTransform()
+			{
+				var temp = _solverInternal;
+				Assert( temp != null );
+				Assert( _limbIK != null );
+
+				if( _armBones == null || _shoulderBones == null ) {
+					return;
+				}
+
+				if( _spineUBone == null || !_spineUBone.transformIsAlive ||
+					_neckBone == null || !_neckBone.transformIsAlive ) {
+				}
+
+				if( !_limbIK[(int)LimbIKLocation.LeftArm].IsSolverEnabled() &&
+					!_limbIK[(int)LimbIKLocation.RightArm].IsSolverEnabled() ) {
+					return;
+				}
+
+				Vector3 dirY = temp.neckPos - temp.spineUPos;
+				Vector3 dirX = temp.nearArmPos[1] - temp.nearArmPos[0];
+
+				Matrix3x3 boneBasis;
+				if( SAFBIKVecNormalize( ref dirY ) && SAFBIKComputeBasisFromXYLockY( out boneBasis, ref dirX, ref dirY ) ) {
+					Matrix3x3 tempBasis;
+					SAFBIKMatMult( out tempBasis, ref boneBasis, ref _spineUBone._localAxisBasisInv );
+
+					Vector3 tempPos = temp.spineUPos;
+					for( int i = 0; i != 2; ++i ) {
+						int limbIKIndex = (i == 0) ? (int)LimbIKLocation.LeftArm : (int)LimbIKLocation.RightArm;
+						if( _limbIK[limbIKIndex].IsSolverEnabled() ) {
+							SAFBIKMatMultVecPreSubAdd( out temp.armPos[i], ref tempBasis, ref _armBones[i]._defaultPosition, ref _spineUBone._defaultPosition, ref tempPos );
+                        }
+                    }
+				}
 			}
 
 			//----------------------------------------------------------------------------------------------------------------------------------------
@@ -2098,7 +2143,7 @@ namespace SA
 				Matrix3x3[] _tempParentBasis = new Matrix3x3[2] { Matrix3x3.identity, Matrix3x3.identity };
 				Vector3[] _tempArmToElbowDefaultDir = new Vector3[2];
 
-				public bool ShoulderAccurateSolve()
+				public bool ShoulderResolve()
 				{
 					Bone[] armBones = _solverCaches.armBones;
 					Bone[] shoulderBones = _solverCaches.shoulderBones;
@@ -2151,7 +2196,7 @@ namespace SA
 						return false; // Not required.
 					}
 
-					float feedbackRate = settings.bodyIK.shoulderBendingFeedbackRate;
+					float feedbackRate = settings.bodyIK.shoulderResolveBendingRate;
 
 					bool updateAnything = false;
 					for( int i = 0; i != 2; ++i ) {
