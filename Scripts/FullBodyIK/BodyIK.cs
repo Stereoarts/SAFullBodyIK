@@ -2551,23 +2551,7 @@ namespace SA
 						var targetArmPosEnabled = this.arms.targetBeginPosEnabled;
 						Vector3 destArmPos = targetArmPos[i];
 						bool destArmPosEnabled = targetArmPosEnabled[i];
-
-						Assert( _armEffectors != null );
-						var armEffector = _armEffectors[i];
-						Assert( armEffector != null );
-						if( armEffector.positionEnabled && armEffector.positionWeight > IKEpsilon ) {
-							if( !destArmPosEnabled ) {
-								if( !isArmEffectorOnly ) {
-									return; // Exclude 1st phase.
-								}
-
-								destArmPos = armEffector._hidden_worldPosition;
-								destArmPosEnabled = true;
-                            } else {
-								destArmPos = Vector3.Lerp( destArmPos, armEffector._hidden_worldPosition, armEffector.positionWeight );
-							}
-						}
-
+						// Note: No effects _armEffector[i] at this function.
 						if( destArmPosEnabled ) {
 							SolveShoulderToArmInternal( i, ref destArmPos );
 						}
