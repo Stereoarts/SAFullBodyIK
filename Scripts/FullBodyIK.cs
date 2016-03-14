@@ -307,6 +307,10 @@ namespace SA
 			public Matrix3x3 defaultRootBasisInv = Matrix3x3.identity;
 			public Quaternion defaultRootRotation = Quaternion.identity;
 
+			// Using by resetTransforms & continuousSolverEnabled.
+			public Vector3 baseHipsPos = Vector3.zero;
+			public Matrix3x3 baseHipsBasis = Matrix3x3.identity;
+
 #if SAFULLBODYIK_DEBUG
 			public DebugData debugData = new DebugData();
 #endif
@@ -1286,6 +1290,64 @@ namespace SA
 			}
 		}
 
+		// for effector._hidden_worldPosition / BodyIK
+		void _ComputeBaseHipsTransform()
+		{
+			Assert( internalValues != null );
+
+			if( bodyEffectors == null ) { // Note: bodyEffectors is public.
+				return;
+			}
+
+			Effector hipsEffector = bodyEffectors.hips;
+			if( hipsEffector == null || rootEffector == null ) {
+				return;
+			}
+
+			if( hipsEffector.rotationEnabled && hipsEffector.rotationWeight > IKEpsilon ) {
+				Quaternion hipsRotation = hipsEffector.worldRotation * Inverse( hipsEffector._defaultRotation );
+				if( hipsEffector.rotationWeight < 1.0f - IKEpsilon ) {
+					Quaternion rootRotation = rootEffector.worldRotation * Inverse( rootEffector._defaultRotation );
+					Quaternion tempRotation = Quaternion.Lerp( rootRotation, hipsRotation, hipsEffector.rotationWeight );
+					SAFBIKMatSetRot( out internalValues.baseHipsBasis, ref tempRotation );
+				} else {
+					SAFBIKMatSetRot( out internalValues.baseHipsBasis, ref hipsRotation );
+				}
+			} else {
+				Quaternion rootEffectorWorldRotation = rootEffector.worldRotation;
+				SAFBIKMatSetRotMultInv1( out internalValues.baseHipsBasis, ref rootEffectorWorldRotation, ref rootEffector._defaultRotation );
+			}
+
+			if( hipsEffector.positionEnabled && hipsEffector.positionWeight > IKEpsilon ) {
+				Vector3 hipsEffectorWorldPosition = hipsEffector.worldPosition;
+				SAFBIKMatMultVecPreSubAdd(
+					out internalValues.baseHipsPos,
+					ref internalValues.baseHipsBasis,
+					ref rootEffector._defaultPosition,
+					ref hipsEffector._defaultPosition,
+					ref hipsEffectorWorldPosition );
+				if( hipsEffector.positionWeight < 1.0f - IKEpsilon ) {
+					Vector3 rootEffectorWorldPosition = rootEffector.worldPosition;
+					Vector3 hipsPosition;
+					SAFBIKMatMultVecPreSubAdd(
+						out hipsPosition,
+						ref internalValues.baseHipsBasis,
+						ref hipsEffector._defaultPosition,
+						ref rootEffector._defaultPosition,
+						ref rootEffectorWorldPosition );
+					internalValues.baseHipsPos = Vector3.Lerp( hipsPosition, internalValues.baseHipsPos, hipsEffector.positionWeight );
+				}
+			} else {
+				Vector3 rootEffectorWorldPosition = rootEffector.worldPosition;
+				SAFBIKMatMultVecPreSubAdd(
+					out internalValues.baseHipsPos,
+					ref internalValues.baseHipsBasis,
+					ref hipsEffector._defaultPosition,
+					ref rootEffector._defaultPosition,
+					ref rootEffectorWorldPosition );
+			}
+		}
+
 		public void Update()
 		{
 			_UpdateInternalValues();
@@ -1305,31 +1367,56 @@ namespace SA
 
 			_Bones_SyncDisplacement();
 
+			if( internalValues.resetTransforms || internalValues.continuousSolverEnabled ) {
+				_ComputeBaseHipsTransform();
+            }
+
 			// Feedback bonePositions to effectorPositions.
 			// (for AnimatorEnabled only.)
 			if( _effectors != null ) {
 				int effectorLength = _effectors.Length;
 				for( int i = 0; i != effectorLength; ++i ) {
-					if( _effectors[i] != null ) {
-						if( _effectors[i].positionEnabled ) {
-							_effectors[i]._hidden_worldPosition = _effectors[i].worldPosition;
+					Effector effector = _effectors[i];
+					if( effector != null ) {
+						// LimbIK : bending / end
+						// BodyIK :  wrist / foot / neck / eyes
+						// FingerIK : nothing
+						if( effector.effectorType == EffectorType.HandFinger ) { // Optimize.
+#if SAFULLBODYIK_DEBUG
+							effector._hidden_worldPosition = new Vector3();
+#endif
 						} else {
-							if( _effectors[i].bone != null ) {
-								_effectors[i]._hidden_worldPosition = _effectors[i].bone.worldPosition;
-							}
-						}
-						if( internalValues.animatorEnabled && !internalValues.resetTransforms ) {
-							if( _effectors[i].positionEnabled && _effectors[i].positionWeight < 1.0f - IKEpsilon ) {
-								float weight = (_effectors[i].positionWeight > IKEpsilon) ? _effectors[i].positionWeight : 0.0f;
-								if( weight == 0.0f ) {
-									_effectors[i]._hidden_worldPosition = _effectors[i].bone_worldPosition;
+							float weight = effector.positionEnabled ? effector.positionWeight : 0.0f;
+							Vector3 destPosition = (weight > IKEpsilon) ? effector.worldPosition : new Vector3();
+							if( weight < 1.0f - IKEpsilon ) {
+								Vector3 sourcePosition = destPosition; // Failsafe.
+								if( !internalValues.animatorEnabled && (internalValues.resetTransforms || internalValues.continuousSolverEnabled) ) {
+									if( effector.effectorLocation == EffectorLocation.Hips ) {
+										sourcePosition = internalValues.baseHipsPos;
+									} else {
+										Effector hipsEffector = (bodyEffectors != null) ? bodyEffectors.hips : null;
+										if( hipsEffector != null ) {
+											SAFBIKMatMultVecPreSubAdd(
+												out sourcePosition,
+												ref internalValues.baseHipsBasis,
+												ref effector._defaultPosition,
+												ref hipsEffector._defaultPosition,
+												ref internalValues.baseHipsPos );
+                                        }
+									}
+								} else { // for Animation.
+									if( effector.bone != null && effector.bone.transformIsAlive ) {
+										sourcePosition = effector.bone.worldPosition;
+									}
+								}
+
+								if( weight > IKEpsilon ) {
+									effector._hidden_worldPosition = Vector3.Lerp( sourcePosition, destPosition, weight );
 								} else {
-									_effectors[i]._hidden_worldPosition = Vector3.Lerp( _effectors[i].bone_worldPosition, _effectors[i].worldPosition, weight );
+									effector._hidden_worldPosition = sourcePosition;
 								}
-							} else if( !_effectors[i].positionEnabled ) {
-								if( _effectors[i].bone != null && _effectors[i].bone.transformIsAlive ) {
-									_effectors[i]._hidden_worldPosition = _effectors[i].bone_worldPosition;
-								}
+							} else {
+								effector._hidden_worldPosition = destPosition;
 							}
 						}
 					}

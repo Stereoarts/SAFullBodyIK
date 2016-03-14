@@ -353,25 +353,35 @@ namespace SA
 
 				var temp = _solverInternal;
 
-				bool neckEnabled = (_neckBone != null && _neckBone.transformIsAlive);
-
-				// Memo: arms / legs don't setup here. (Already prepared in _PrepareSolverInternal())
-
-				if( temp.spinePos != null ) {
-					for( int i = 0; i < temp.spinePos.Length; ++i ) {
-						temp.spinePos[i] = _spineBones[i].worldPosition;
+				if( !_internalValues.resetTransforms ) {
+					if( temp.spinePos != null ) {
+						for( int i = 0; i != _spineBones.Length; ++i ) {
+							if( _spineBones[i] != null ) {
+								temp.spinePos[i] = _spineBones[i].worldPosition;
+							}
+						}
 					}
-				}
-				if( neckEnabled ) {
-					temp.neckPos = _neckBone.worldPosition;
-				}
-				if( temp.shoulderPos != null ) {
-					for( int i = 0; i < 2; ++i ) {
-						temp.shoulderPos[i] = _shoulderBones[i].worldPosition;
+					if( _neckBone != null ) {
+						temp.neckPos = _neckBone.worldPosition;
 					}
-				}
+					if( temp.shoulderPos != null ) {
+						for( int i = 0; i < 2; ++i ) {
+							temp.shoulderPos[i] = _shoulderBones[i].worldPosition;
+						}
+					}
+					if( temp.armPos != null ) {
+						for( int i = 0; i != 2; ++i ) {
+							temp.armPos[i] = _armBones[i].worldPosition;
+						}
+					}
+					if( temp.legPos != null ) {
+						for( int i = 0; i != 2; ++i ) {
+							temp.legPos[i] = _legBones[i].worldPosition;
+						}
+					}
 
-				temp.SetDirtyVariables();
+					temp.SetDirtyVariables();
+				}
 
 				if( _internalValues.resetTransforms ) {
 					_ResetTransforms();
@@ -384,6 +394,10 @@ namespace SA
 						_ResetShoulderTransform();
 					}
 				}
+
+				// Arms, Legs
+				_solverInternal.arms.Prepare( _wristEffectors, _armEffectorMaxLength );
+				_solverInternal.legs.Prepare( _footEffectors, _legEffectorMaxLength );
 
 #if SAFULLBODYIK_DEBUG
 				bool _isVisibleWorldTransform = true;
@@ -497,16 +511,7 @@ namespace SA
 					}
 					temp.SetDirtyVariables();
 				}
-#if false // Removed: Because this should move to last pass.(Shouldn't feedback uppersolve pass.)
-				// At 1st time, feedback _armEffectors.(Optional)
-				temp.arms.ClearEnvTargetBeginPos();
 
-				for( int i = 0; i != 2; ++i ) {
-					if( _tempShoulderToArmWeight[i] > IKEpsilon ) {
-						_UpperSolve_ShoulderToArm( i, true ); // Update temp.arms.beginPos(armPos)
-					}
-				}
-#endif
 				temp.UpperSolve();
 
 				float upperLerpDir1Rate = _internalValues.bodyIK.upperCenterLegRotateRate.value;
@@ -939,14 +944,7 @@ namespace SA
 
 				bool translateEnabled = (continuousSolverEnabled && stableRate.isGreater0);
 				if( temp.targetCenterArmEnabled ) {
-					Vector3 origPos;
-					if( temp.shoulderPos != null ) {
-						origPos = (temp.shoulderPos[0] + temp.shoulderPos[1]) * 0.5f;
-					} else {
-						origPos = (temp.armPos[0] + temp.armPos[1]) * 0.5f;
-					}
-
-					translate = temp.targetCenterArmPos - origPos;
+					translate = temp.targetCenterArmPos - temp.currentCenterArmPos;
 					translateEnabled = true;
 				}
 
@@ -1166,37 +1164,6 @@ namespace SA
 					return false;
 				}
 
-				if( _solverInternal == null ) {
-					_solverInternal = new SolverInternal();
-					_solverInternal.settings = _settings;
-					_solverInternal.internalValues = _internalValues;
-					_solverInternal._solverCaches = _solverCaches;
-                    _solverInternal._shouderLocalAxisYInv = _shouderLocalAxisYInv;
-					_solverInternal._armEffectors = _armEffectors;
-					_solverInternal._wristEffectors = _wristEffectors; // test.
-					_solverInternal._neckEffector = _neckEffector; // test.
-					_solverInternal._spineBones = _spineBones;
-					_solverInternal._shoulderBones = _shoulderBones;
-					_solverInternal._armBones = _armBones;
-                    _solverInternal._armLimbIK[0] = _limbIK[(int)LimbIKLocation.LeftArm];
-					_solverInternal._armLimbIK[1] = _limbIK[(int)LimbIKLocation.RightArm];
-					_solverInternal._centerLegBoneBasisInv = this._centerLegBoneBasisInv;
-					if( _spineUBone != null ) {
-						if( _shoulderBones != null || _armBones != null ) {
-							var nearArmBones = ( _shoulderBones != null ) ? _shoulderBones : _armBones;
-							Vector3 dirY = nearArmBones[1]._defaultPosition + nearArmBones[0]._defaultPosition;
-							Vector3 dirX = nearArmBones[1]._defaultPosition - nearArmBones[0]._defaultPosition;
-							dirY = dirY * 0.5f - _spineUBone._defaultPosition;
-							Vector3 dirZ = Vector3.Cross( dirX, dirY );
-							dirX = Vector3.Cross( dirY, dirZ );
-							if( SAFBIKVecNormalize3( ref dirX, ref dirY, ref dirZ ) ) {
-								Matrix3x3 localBasis = Matrix3x3.FromColumn( ref dirX, ref dirY, ref dirZ );
-								_solverInternal._spineUBoneLocalAxisBasisInv = localBasis.transpose;
-							}
-						}
-					}
-				}
-
 				// SolverCaches
 				if( _wristEffectors != null ) {
 					_solverCaches.wristPull[0] = _wristEffectors[0].positionEnabled ? _wristEffectors[0].pull : 0.0f;
@@ -1212,23 +1179,7 @@ namespace SA
 					_solverCaches.neckPull = _neckEffector.positionEnabled ? _neckEffector.pull : 0.0f;
 				}
 
-				// Arms, Legs
-				_solverInternal.arms.Prepare( _armBones, _wristEffectors, _armEffectorMaxLength );
-				_solverInternal.legs.Prepare( _legBones, _footEffectors, _legEffectorMaxLength );
-
-				_solverInternal.armToLegPull[0] = _solverInternal.arms.pull[0] + _solverInternal.arms.pull[1];
-				_solverInternal.armToLegPull[1] = _solverInternal.legs.pull[0] + _solverInternal.legs.pull[1];
-				_PullToWeight2( _solverInternal.armToLegPull, _solverInternal.armToLegWeight );
-
-				// Shoulder bones. (Optional)
-				PrepareArray( ref _solverInternal.shoulderPos, _shoulderBones );
-
-				_solverInternal.nearArmPos = (_shoulderBones != null) ? _solverInternal.shoulderPos : _solverInternal.armPos;
-
-				PrepareArray( ref _solverInternal.spinePos, _spineBones );
-
-				// _spineDirXRate
-
+				// _spineDirXRate, _spineEnabled
 				if( _spineBones != null ) {
 					int spineLength = _spineBones.Length;
 					Assert( _spineDirXRate != null && _spineDirXRate.Length == spineLength );
@@ -1259,6 +1210,47 @@ namespace SA
 						_spineEnabled[3] = _settings.bodyIK.upperSolveSpine4Enabled;
 					}
 				}
+
+				//------------------------------------------------------------------------------------------------------------------------
+
+				if( _solverInternal == null ) {
+					_solverInternal = new SolverInternal();
+					_solverInternal.settings = _settings;
+					_solverInternal.internalValues = _internalValues;
+					_solverInternal._solverCaches = _solverCaches;
+					_solverInternal._shouderLocalAxisYInv = _shouderLocalAxisYInv;
+					_solverInternal._armEffectors = _armEffectors;
+					_solverInternal._wristEffectors = _wristEffectors; // test.
+					_solverInternal._neckEffector = _neckEffector; // test.
+					_solverInternal._spineBones = _spineBones;
+					_solverInternal._shoulderBones = _shoulderBones;
+					_solverInternal._armBones = _armBones;
+					_solverInternal._armLimbIK[0] = _limbIK[(int)LimbIKLocation.LeftArm];
+					_solverInternal._armLimbIK[1] = _limbIK[(int)LimbIKLocation.RightArm];
+					_solverInternal._centerLegBoneBasisInv = this._centerLegBoneBasisInv;
+					PrepareArray( ref _solverInternal.shoulderPos, _shoulderBones );
+					PrepareArray( ref _solverInternal.spinePos, _spineBones );
+					_solverInternal.nearArmPos = (_shoulderBones != null) ? _solverInternal.shoulderPos : _solverInternal.armPos;
+					if( _spineUBone != null ) {
+						if( _shoulderBones != null || _armBones != null ) {
+							var nearArmBones = (_shoulderBones != null) ? _shoulderBones : _armBones;
+							Vector3 dirY = nearArmBones[1]._defaultPosition + nearArmBones[0]._defaultPosition;
+							Vector3 dirX = nearArmBones[1]._defaultPosition - nearArmBones[0]._defaultPosition;
+							dirY = dirY * 0.5f - _spineUBone._defaultPosition;
+							Vector3 dirZ = Vector3.Cross( dirX, dirY );
+							dirX = Vector3.Cross( dirY, dirZ );
+							if( SAFBIKVecNormalize3( ref dirX, ref dirY, ref dirZ ) ) {
+								Matrix3x3 localBasis = Matrix3x3.FromColumn( ref dirX, ref dirY, ref dirZ );
+								_solverInternal._spineUBoneLocalAxisBasisInv = localBasis.transpose;
+							}
+						}
+					}
+				}
+
+				// Update pull values.
+				_solverInternal.armToLegPull[0] = _solverInternal.arms.pull[0] + _solverInternal.arms.pull[1];
+				_solverInternal.armToLegPull[1] = _solverInternal.legs.pull[0] + _solverInternal.legs.pull[1];
+				_PullToWeight2( _solverInternal.armToLegPull, _solverInternal.armToLegWeight );
 
 				return true;
 			}
@@ -1338,36 +1330,17 @@ namespace SA
 				// Use from resetTransforms & continuousSolverEnabled.
 				Assert( _internalValues != null );
 
-				if( _hipsEffector != null && _hipsEffector.rotationEnabled && _hipsEffector.rotationWeight > IKEpsilon ) {
-					Quaternion centerLegRotation = _hipsEffector.worldRotation * Inverse( _hipsEffector._defaultRotation );
-					if( _hipsEffector.rotationWeight < 1.0f - IKEpsilon && _rootEffector != null && _rootEffector.transformIsAlive ) {
-						Quaternion rootRotation = _rootEffector.worldRotation * Inverse( _rootEffector._defaultRotation );
-						Quaternion tempRotation = Quaternion.Lerp( rootRotation, centerLegRotation, _hipsEffector.rotationWeight );
-						SAFBIKMatSetRot( out centerLegBasis, ref tempRotation );
-					} else {
-						SAFBIKMatSetRot( out centerLegBasis, ref centerLegRotation );
-                    }
-				} else if( _rootEffector != null && _rootEffector.transformIsAlive ) {
-					Quaternion rootEffectorWorldRotation = _rootEffector.worldRotation;
-					SAFBIKMatSetRotMultInv1( out centerLegBasis, ref rootEffectorWorldRotation, ref _rootEffector._defaultRotation );
-				} else {
-					centerLegBasis = Matrix3x3.identity;
-				}
+				centerLegBasis = _internalValues.baseHipsBasis;
 
-				if( _hipsEffector != null && _hipsEffector.positionEnabled && _hipsEffector.pull > IKEpsilon ) {
-                    Vector3 hipsEffectorWorldPosition = _hipsEffector._hidden_worldPosition;
-					SAFBIKMatMultVecPreSubAdd( out centerLegPos, ref centerLegBasis, ref _defaultCenterLegPos, ref _hipsEffector._defaultPosition, ref hipsEffectorWorldPosition );
-					if( _hipsEffector.pull < 1.0f - IKEpsilon && _rootEffector != null && _rootEffector.transformIsAlive ) {
-						Vector3 rootEffectorWorldPosition = _rootEffector.worldPosition;
-						Vector3 rootPosition;
-						SAFBIKMatMultVecPreSubAdd( out rootPosition, ref centerLegBasis, ref _defaultCenterLegPos, ref _rootEffector._defaultPosition, ref rootEffectorWorldPosition );
-						centerLegPos = Vector3.Lerp( rootPosition, centerLegPos, _hipsEffector.pull );
-					}
-				} else if( _rootEffector != null && _rootEffector.transformIsAlive ) {
-					Vector3 rootEffectorWorldPosition = _rootEffector.worldPosition;
-					SAFBIKMatMultVecPreSubAdd( out centerLegPos, ref centerLegBasis, ref _defaultCenterLegPos, ref _rootEffector._defaultPosition, ref rootEffectorWorldPosition );
-				} else {
-					centerLegPos = Vector3.zero;
+				if( _hipsEffector != null ) {
+					SAFBIKMatMultVecPreSubAdd(
+						out centerLegPos,
+						ref _internalValues.baseHipsBasis,
+						ref _defaultCenterLegPos,
+						ref _hipsEffector._defaultPosition,
+						ref _internalValues.baseHipsPos );
+				} else { // Failsafe.
+					centerLegPos = new Vector3();
 				}
 			}
 
@@ -1474,26 +1447,17 @@ namespace SA
 						}
 					}
 					
-					public void Prepare( Bone[] beginBones, Effector[] endEffectors, FastLength[] beginToEndLength )
+					public void Prepare( Effector[] endEffectors, FastLength[] beginToEndLength )
 					{
 						for( int i = 0; i < 2; ++i ) {
-							this.beginPos[i] = beginBones[i].worldPosition;
 							this.targetBeginPos[i] = this.beginPos[i];
 							this.targetBeginPosRated[i] = this.beginPos[i];
 							this.targetBeginPosEnabled[i] = false;
 							this.targetBeginToEnd[i] = Vector3.zero;
 							this.targetBeginToEndTempLen[i] = 0.0f;
 
-							if( endEffectors[i].positionEnabled ) {
-								this.endPosEnabled[i] = true;
-								this.endPos[i] = endEffectors[i]._hidden_worldPosition;
-							} else if( endEffectors[i].bone.transformIsAlive ) { // for other limbs.
-								this.endPosEnabled[i] = true;
-								this.endPos[i] = endEffectors[i].bone.worldPosition;
-							} else {
-								this.endPosEnabled[i] = false;
-								this.endPos[i] = Vector3.zero;
-							}
+							this.endPosEnabled[i] = true;
+							this.endPos[i] = endEffectors[i]._hidden_worldPosition;
 
 							this.pullEnabled[i] = endEffectors[i].positionEnabled && endEffectors[i].pull > IKEpsilon;
 							if( this.pullEnabled[i] ) {
@@ -1502,7 +1466,7 @@ namespace SA
 									this.targetBeginToEndLength[i] = beginToEndLength[i];
 								} else {
 									if( endEffectors[i].bone.transformIsAlive ) { // Lerp Bone to Effector position.
-										float length = (endEffectors[i].bone.worldPosition - endEffectors[i]._hidden_worldPosition).magnitude;
+										float length = (this.beginPos[i] - endEffectors[i]._hidden_worldPosition).magnitude;
 										this.targetBeginToEndLength[i] = FastLength.FromLength( length * (1.0f - this.pull[i]) + beginToEndLength[i].length );
 									} else { // Failsafe.
 										this.pull[i] = 0.0f;
@@ -1591,9 +1555,14 @@ namespace SA
 
 					public bool ResolveTargetBeginPosRated( int i, float limbRate )
 					{
+						return ResolveTargetBeginPosRated( i, limbRate, ref this.beginPos[i] );
+                    }
+
+					public bool ResolveTargetBeginPosRated( int i, float limbRate, ref Vector3 beginPos )
+					{
 						if( this.targetBeginPosEnabled[i] ) {
 							if( limbRate <= IKEpsilon ) {
-								this.targetBeginPosRated[i] = this.beginPos[i];
+								this.targetBeginPosRated[i] = beginPos;
 							} else if( limbRate < 1.0f - IKEpsilon ) {
 								float tempLength = this.targetBeginToEndTempLen[i];
 								tempLength *= (1.0f - limbRate);
@@ -1940,8 +1909,8 @@ namespace SA
 						if( armPull[idx0] > IKEpsilon ) {
 							_SolveArmsToArms( ref armsTemp, armPull[idx0], idx0 );
 						}
-						if( arms._SolveTargetBeginPos( idx0, ref armsTemp.armPos[idx0] ) ) {
-							arms.ResolveTargetBeginPosRated( idx0, wristToArmRate[idx0] ); // Contain wristPull/armPull.
+						if( wristPull[idx0] > IKEpsilon && arms._SolveTargetBeginPos( idx0, ref armsTemp.armPos[idx0] ) ) {
+							arms.ResolveTargetBeginPosRated( idx0, wristToArmRate[idx0], ref armsTemp.armPos[idx0] ); // Contain wristPull/armPull.
 							armsTemp.armPos[idx0] = arms.targetBeginPos[idx0]; // Update armPos
 							if( armsTemp.shoulderEnabled ) {
 								_KeepLength( ref armsTemp.shoulderPos[idx0], ref armsTemp.armPos[idx0], _solverCaches.shoulderToArmLength[idx0] );
