@@ -225,6 +225,8 @@ namespace SA
 				case EffectorType.Arm:		return _EffectorFlags.PullContained;
 				case EffectorType.Wrist:	return _EffectorFlags.RotationContained | _EffectorFlags.PullContained;
 				case EffectorType.Foot:		return _EffectorFlags.RotationContained | _EffectorFlags.PullContained;
+				case EffectorType.Elbow:	return _EffectorFlags.PullContained;
+				case EffectorType.Knee:		return _EffectorFlags.PullContained;
 				}
 				
 				return _EffectorFlags.None;

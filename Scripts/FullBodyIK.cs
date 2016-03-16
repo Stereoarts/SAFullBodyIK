@@ -158,8 +158,7 @@ namespace SA
 				public bool computeWorldTransform = true;
 
 				public bool shoulderSolveEnabled = true;
-				public bool shoulderResolveEnabled = true;
-				public float shoulderResolveBendingRate = 0.25f;
+				public float shoulderSolveBendingRate = 0.25f;
                 public bool shoulderLimitEnabled = true;
 				public float shoulderLimitAngleYPlus = 30.0f;
 				public float shoulderLimitAngleYMinus = 1.0f;

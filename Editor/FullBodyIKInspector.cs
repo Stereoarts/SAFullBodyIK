@@ -213,8 +213,7 @@ namespace SA
 				EditorUtil.GUI.Field( "Compute World Transform", ref settings.bodyIK.computeWorldTransform );
 
 				EditorUtil.GUI.Field( "Shoulder Solve Enabled", ref settings.bodyIK.shoulderSolveEnabled );
-				EditorUtil.GUI.Field( "Shoulder Resolve Enabled", ref settings.bodyIK.shoulderResolveEnabled );
-				EditorUtil.GUI.Slider( "Shoulder Resolve Bending Rate", ref settings.bodyIK.shoulderResolveBendingRate, 0.0f, 1.0f );
+				EditorUtil.GUI.Slider( "Shoulder Solve Bending Rate", ref settings.bodyIK.shoulderSolveBendingRate, 0.0f, 1.0f );
 				EditorUtil.GUI.Field( "Shoulder Limit Enabled", ref settings.bodyIK.shoulderLimitEnabled );
 				EditorUtil.GUI.Field( "Shoulder Limit Angle YPlus", ref settings.bodyIK.shoulderLimitAngleYPlus );
 				EditorUtil.GUI.Field( "Shoulder Limit Angle YMinus", ref settings.bodyIK.shoulderLimitAngleYMinus );
