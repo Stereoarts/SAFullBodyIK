@@ -168,6 +168,7 @@ namespace SA
 				public float spineDirXLegToArmToRate = 0.9f;
 				public float spineDirYLerpRate = 0.7f;
 
+				public float upperBodyMovingfixRate = 1.0f;
 				public float upperCenterLegTranslateRate = 0.5f;
 				public float upperSpineTranslateRate = 0.6f;
 				public float upperCenterLegRotateRate = 0.6f;

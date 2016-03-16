@@ -2018,7 +2018,7 @@ namespace SA
 					_upperSolverPreArmsTemp.armPos[0] = armPos[0];
 					_upperSolverPreArmsTemp.armPos[1] = armPos[1];
 					_upperSolverPreArmsTemp.shoulderEnabled = (shoulderPos != null);
-					if( _upperSolverPreArmsTemp.shoulderEnabled ) {
+                    if( _upperSolverPreArmsTemp.shoulderEnabled ) {
 						_upperSolverPreArmsTemp.shoulderPos[0] = shoulderPos[0];
 						_upperSolverPreArmsTemp.shoulderPos[1] = shoulderPos[1];
 						_upperSolverPreArmsTemp.nearArmPos = _upperSolverPreArmsTemp.shoulderPos;
@@ -2026,19 +2026,50 @@ namespace SA
 						_upperSolverPreArmsTemp.nearArmPos = _upperSolverPreArmsTemp.armPos;
 					}
 
-					// Preprocess neckSolver.
-					if( neckPull > IKEpsilon ) {
-						for( int i = 0; i != 2; ++i ) {
-							Vector3 nearArmPos = _upperSolverPreArmsTemp.nearArmPos[i];
-							_KeepLength( ref nearArmPos, ref _upperSolverTemp.targetNeckPos, _solverCaches.nearArmToNeckLength[i] );
-							_upperSolverPreArmsTemp.nearArmPos[i] = Vector3.Lerp( nearArmPos, _upperSolverPreArmsTemp.nearArmPos[i], _solverCaches.neckToFullArmPull[i] );
-							if( _upperSolverPreArmsTemp.shoulderEnabled ) {
-								_KeepLength(
-									ref _upperSolverPreArmsTemp.armPos[i],
-									ref _upperSolverPreArmsTemp.shoulderPos[i],
-									_solverCaches.shoulderToArmLength[i] );
+					// Moving fix.
+					float bodyMovingfixRate = settings.bodyIK.upperBodyMovingfixRate;
+					if( bodyMovingfixRate > IKEpsilon ) {
+						if( neckPull > IKEpsilon || armPull[0] > IKEpsilon || armPull[1] > IKEpsilon ) {
+							float totalPullInv = 1.0f / (neckPull + armPull[0] + armPull[1]);
+							Vector3 totalMove = Vector3.zero;
+							if( neckPull > IKEpsilon ) {
+								totalMove = (_upperSolverTemp.targetNeckPos - neckPos) * (neckPull * totalPullInv);
 							}
-							//internalValues.AddDebugPoint( nearArmPos, Color.black, 0.1f );
+							if( armPull[0] > IKEpsilon ) {
+								totalMove += (_upperSolverTemp.targetArmPos[0] - armPos[0]) * (armPull[0] * totalPullInv);
+							}
+							if( armPull[1] > IKEpsilon ) {
+								totalMove += (_upperSolverTemp.targetArmPos[1] - armPos[1]) * (armPull[1] * totalPullInv);
+							}
+
+							if( bodyMovingfixRate < 1.0f - IKEpsilon ) {
+								totalMove *= bodyMovingfixRate;
+                            }
+
+							_upperSolverPreArmsTemp.armPos[0] += totalMove;
+							_upperSolverPreArmsTemp.armPos[1] += totalMove;
+							if( _upperSolverPreArmsTemp.shoulderEnabled ) {
+								_upperSolverPreArmsTemp.shoulderPos[0] += totalMove;
+								_upperSolverPreArmsTemp.shoulderPos[1] += totalMove;
+							}
+						}
+					}
+
+					// Preprocess neckSolver.
+					if( bodyMovingfixRate < 1.0f - IKEpsilon ) {
+						if( neckPull > IKEpsilon ) {
+							for( int i = 0; i != 2; ++i ) {
+								Vector3 nearArmPos = _upperSolverPreArmsTemp.nearArmPos[i];
+								_KeepLength( ref nearArmPos, ref _upperSolverTemp.targetNeckPos, _solverCaches.nearArmToNeckLength[i] );
+								_upperSolverPreArmsTemp.nearArmPos[i] = Vector3.Lerp( _upperSolverPreArmsTemp.nearArmPos[i], nearArmPos, neckPull ); // Not use neckToFullArmPull in Presolve.
+								if( _upperSolverPreArmsTemp.shoulderEnabled ) {
+									_KeepLength(
+										ref _upperSolverPreArmsTemp.armPos[i],
+										ref _upperSolverPreArmsTemp.shoulderPos[i],
+										_solverCaches.shoulderToArmLength[i] );
+								}
+								//internalValues.AddDebugPoint( nearArmPos, Color.black, 0.1f );
+							}
 						}
 					}
 
