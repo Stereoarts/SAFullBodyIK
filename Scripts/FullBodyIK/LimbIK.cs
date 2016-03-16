@@ -566,7 +566,7 @@ namespace SA
 
 			public bool IsSolverEnabled()
 			{
-				if( !_endEffector.positionEnabled ) {
+				if( !_endEffector.positionEnabled && !(_bendingEffector.positionEnabled && _bendingEffector.pull > IKEpsilon) ) {
 					if( _limbIKType == LimbIKType.Arm ) {
 						if( !_settings.limbIK.armAlwaysSolveEnabled ) {
 							return false;
