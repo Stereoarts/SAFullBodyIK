@@ -52,7 +52,7 @@ namespace SA
 			_EffectorFlags _effectorFlags = _EffectorFlags.None;
 
 			// These aren't serialize field.
-			// Memo: If this instance is cloned, will be cloned these properties, too.
+			// Memo: If this instance is cloned, will be copyed these properties, too.
 			Effector _parentEffector = null;
 			Bone _bone = null; // Hips : Hips Eyes : Head
 			Bone _leftBone = null; // Hips : LeftLeg Eyes : LeftEye Others : null
@@ -220,7 +220,7 @@ namespace SA
 				switch( effectorType ) {
 				case EffectorType.Hips:		return _EffectorFlags.RotationContained | _EffectorFlags.PullContained;
 				case EffectorType.Neck:		return _EffectorFlags.PullContained;
-				case EffectorType.Head:		return _EffectorFlags.RotationContained;
+				case EffectorType.Head:		return _EffectorFlags.RotationContained | _EffectorFlags.PullContained;
 				case EffectorType.Eyes:		return _EffectorFlags.PullContained;
 				case EffectorType.Arm:		return _EffectorFlags.PullContained;
 				case EffectorType.Wrist:	return _EffectorFlags.RotationContained | _EffectorFlags.PullContained;

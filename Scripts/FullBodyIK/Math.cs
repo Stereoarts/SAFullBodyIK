@@ -17,6 +17,14 @@ namespace SA
 	{
 		[System.Serializable]
 		[StructLayout(LayoutKind.Sequential, Pack = 4)]
+		public struct Float2
+		{
+			[MarshalAs( UnmanagedType.ByValArray, SizeConst = 2 )]
+			public float[] v;
+		}
+
+		[System.Serializable]
+		[StructLayout(LayoutKind.Sequential, Pack = 4)]
 		public struct Matrix3x3
 		{
 			public Vector3 column0, column1, column2;
