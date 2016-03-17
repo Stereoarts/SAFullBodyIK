@@ -2110,8 +2110,9 @@ namespace SA
 						if( headPull > IKEpsilon || neckPull > IKEpsilon ) {
 							if( headMovingfixRate < 1.0f - IKEpsilon && headPull > IKEpsilon ) {
 								Vector3 tempNeckPos = _upperSolverPreArmsTemp.neckPos;
-								_KeepLength( ref tempNeckPos, ref _upperSolverTemp.targetHeadPos, _solverCaches.neckToHeadLength );
-								_upperSolverPreArmsTemp.neckPos = Vector3.Lerp( _upperSolverPreArmsTemp.neckPos, tempNeckPos, headPull );
+								if( _KeepMaxLength( ref tempNeckPos, ref _upperSolverTemp.targetHeadPos, _solverCaches.neckToHeadLength ) ) { // Not KeepLength
+									_upperSolverPreArmsTemp.neckPos = Vector3.Lerp( _upperSolverPreArmsTemp.neckPos, tempNeckPos, headPull );
+								}
                             }
 							for( int i = 0; i != 2; ++i ) {
 								if( bodyMovingfixRate < 1.0f - IKEpsilon && neckPull > IKEpsilon ) {
@@ -2641,6 +2642,19 @@ namespace SA
 			}
 
 			//----------------------------------------------------------------------------------------------------------------------------------------
+
+			static bool _KeepMaxLength( ref Vector3 posTo, ref Vector3 posFrom, float keepLength )
+			{
+				Vector3 v = posTo - posFrom;
+				float len = SAFBIKVecLength( ref v );
+				if( len > IKEpsilon && len > keepLength ) {
+					v = v * (keepLength / len);
+					posTo = posFrom + v;
+					return true;
+				}
+
+				return false;
+			}
 
 			static bool _KeepMaxLength( ref Vector3 posTo, ref Vector3 posFrom, ref FastLength keepLength )
 			{
