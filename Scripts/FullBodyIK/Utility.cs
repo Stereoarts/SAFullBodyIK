@@ -101,6 +101,28 @@ namespace SA
 
 		//----------------------------------------------------------------------------------------------------------------
 
+		static Bone _PrepareBone( Bone bone )
+		{
+			return (bone != null && bone.transformIsAlive) ? bone : null;
+		}
+
+		static Bone[] _PrepareBones( Bone leftBone, Bone rightBone )
+		{
+			Assert( leftBone != null && rightBone != null );
+			if( leftBone != null && rightBone != null ) {
+				if( leftBone.transformIsAlive && rightBone.transformIsAlive ) {
+					var bones = new Bone[2];
+					bones[0] = leftBone;
+					bones[1] = rightBone;
+					return bones;
+				}
+			}
+
+			return null;
+		}
+
+		//----------------------------------------------------------------------------------------------------------------
+
 #if SAFULLBODYIK_DEBUG
 		public enum DebugValueType
 		{

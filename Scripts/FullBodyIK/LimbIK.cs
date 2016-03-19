@@ -1145,6 +1145,8 @@ namespace SA
 					return false;
 				}
 
+				// todo: rotationWeight
+
 				var r = _endEffector.worldRotation * _endEffectorToWorldRotation;
 				_endBone.worldRotation = r;
 				return true;

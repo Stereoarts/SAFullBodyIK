@@ -487,6 +487,34 @@ namespace SA
 					_worldRotation = value;
 				}
 			}
+			
+			public void forcefix_worldRotation()
+			{
+				if( this.transformIsAlive ) {
+					if( !_isReadWorldRotation ) {
+						_isReadWorldRotation = true;
+						_worldRotation = this.transform.rotation;
+					}
+					_isWrittenWorldRotation = true;
+
+					// Fix worldPosition
+					if( _parentBone != null && _parentBone.transformIsAlive ) {
+						Quaternion parentWorldRotation = _parentBone.worldRotation;
+
+						Matrix3x3 parentRotationBasis;
+						SAFBIKMatSetRotMultInv1( out parentRotationBasis, ref parentWorldRotation, ref this.parentBone._defaultRotation );
+
+						Vector3 parentWorldPosition = parentBone.worldPosition;
+
+						Vector3 tempPos;
+						SAFBIKMatMultVecPreSubAdd( out tempPos, ref parentRotationBasis, ref _defaultPosition, ref parentBone._defaultPosition, ref parentWorldPosition );
+
+						_isWrittenWorldPosition = true;
+						_isWritebackWorldPosition = true;
+						_worldPosition = tempPos;
+					}
+				}
+			}
 
 			public void WriteToTransform()
 			{

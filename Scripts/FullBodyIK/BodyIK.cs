@@ -169,11 +169,6 @@ namespace SA
 				_Prepare( fullBodyIK );
 			}
 
-			static Bone _PrepareBone( Bone bone )
-			{
-				return (bone != null && bone.transformIsAlive) ? bone : null;
-			}
-
 			static Bone[] _PrepareSpineBones( Bone[] bones )
 			{
 				if( bones == null || bones.Length != (int)BoneLocation.Max ) {
@@ -202,21 +197,6 @@ namespace SA
 				}
 
 				return spineBones;
-			}
-
-			static Bone[] _PrepareBones( Bone leftBone, Bone rightBone )
-			{
-				Assert( leftBone != null && rightBone != null );
-				if( leftBone != null && rightBone != null ) {
-					if( leftBone.transformIsAlive && rightBone.transformIsAlive ) {
-						var bones = new Bone[2];
-						bones[0] = leftBone;
-						bones[1] = rightBone;
-						return bones;
-					}
-				}
-
-				return null;
 			}
 
 			void _Prepare( FullBodyIK fullBodyIK )

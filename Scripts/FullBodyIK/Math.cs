@@ -1930,6 +1930,46 @@ namespace SA
 			return false;
 		}
 
+		// Limited Square.
+		public static bool _LimitXZ_Square(
+			ref Vector3 dir,                // dirZ
+			float limitXMinus,               // X-
+			float limitXPlus,                // X+
+			float limitZMinus,               // Z-
+			float limitZPlus )               // Z+
+		{
+			bool isXLimited = false;
+			bool isZLimited = false;
+
+			if( dir.x < -limitXMinus ) {
+				dir.x = -limitXMinus;
+				isXLimited = true;
+			} else if( dir.x > limitXPlus ) {
+				dir.x = limitXPlus;
+				isXLimited = true;
+			}
+
+			if( dir.z < -limitZMinus ) {
+				dir.z = -limitZMinus;
+				isZLimited = true;
+			} else if( dir.z > limitZPlus ) {
+				dir.z = limitZPlus;
+				isZLimited = true;
+			}
+
+			if( isXLimited || isZLimited ) {
+				dir.y = SAFBIKSqrt( 1.0f - (dir.x * dir.x + dir.z * dir.z) );
+				return true;
+			} else {
+				if( dir.y < 0.0f ) {
+					dir.y = -dir.y;
+					return true;
+				}
+			}
+
+			return false;
+		}
+
 		//--------------------------------------------------------------------------------------------------------------------
 
 		public static bool _LimitXY(

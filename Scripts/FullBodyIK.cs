@@ -632,6 +632,8 @@ namespace SA
 		HeadIK _headIK;
 		FingerIK[] _fingerIK = new FingerIK[(int)FingerIKType.Max];
 
+		bool _isNeedFixShoulderWorldTransform;
+
 		bool _isPrefixed;
 		bool _isPrepared;
 		[SerializeField]
@@ -1203,7 +1205,21 @@ namespace SA
 			for( int i = 0; i != (int)FingerIKType.Max; ++i ) {
 				_fingerIK[i] = new FingerIK( this, (FingerIKType)i );
 			}
-		}
+
+			{
+				Bone neckBone = headBones.neck;
+				Bone leftShoulder = leftArmBones.shoulder;
+				Bone rightShoulder = rightArmBones.shoulder;
+				if( leftShoulder != null && leftShoulder.transformIsAlive &&
+					rightShoulder != null && rightShoulder.transformIsAlive &&
+					neckBone != null && neckBone.transformIsAlive ) {
+					if( leftShoulder.transform.parent == neckBone.transform &&
+						rightShoulder.transform.parent == neckBone.transform ) {
+						_isNeedFixShoulderWorldTransform = true;
+					}
+				}
+			}
+        }
 
 		bool _isAnimatorCheckedAtLeastOnce = false;
 
@@ -1379,6 +1395,8 @@ namespace SA
 				for( int i = 0; i != effectorLength; ++i ) {
 					Effector effector = _effectors[i];
 					if( effector != null ) {
+						// todo: Optimize. (for BodyIK)
+
 						// LimbIK : bending / end
 						// BodyIK :  wrist / foot / neck / eyes
 						// FingerIK : nothing
@@ -1440,10 +1458,17 @@ namespace SA
 				}
 			}
 
+			// todo: Force overwrite _hidden_worldPosition (LimbIK, arms)
+
+			// settings.
+			//		public bool legAlwaysSolveEnabled = true;
+			//		public bool armAlwaysSolveEnabled = false;
+
 			if( _limbIK != null || _headIK != null ) {
 				_Bones_PrepareUpdate();
 
 				bool isSolved = false;
+				bool isHeadSolved = false;
 				if( _limbIK != null ) {
 					int limbIKLength = _limbIK.Length;
 					for( int i = 0; i != limbIKLength; ++i ) {
@@ -1453,8 +1478,17 @@ namespace SA
 					}
 				}
 				if( _headIK != null ) {
-					_headIK.Solve();
-					isSolved = true;
+					isHeadSolved = _headIK.Solve();
+					isSolved |= isHeadSolved;
+                }
+
+				if( isHeadSolved && _isNeedFixShoulderWorldTransform ) {
+					if( leftArmBones.shoulder != null ) {
+						leftArmBones.shoulder.forcefix_worldRotation();
+					}
+					if( rightArmBones.shoulder != null ) {
+						rightArmBones.shoulder.forcefix_worldRotation();
+					}
 				}
 
 				if( isSolved ) {
