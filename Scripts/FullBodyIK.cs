@@ -153,6 +153,8 @@ namespace SA
 			[System.Serializable]
 			public class BodyIK
 			{
+				public bool forceSolveEnabled = true;
+
 				public bool lowerSolveEnabled = true;
 				public bool upperSolveEnabled = true;
 				public bool computeWorldTransform = true;
@@ -165,8 +167,8 @@ namespace SA
 				public float shoulderLimitAngleZ = 30.0f;
 
 				public float spineDirXLegToArmRate = 0.5f;
-				public float spineDirXLegToArmToRate = 0.9f;
-				public float spineDirYLerpRate = 0.7f;
+				public float spineDirXLegToArmToRate = 1.0f;
+				public float spineDirYLerpRate = 0.5f;
 
 				public float upperBodyMovingfixRate = 1.0f;
 				public float upperHeadMovingfixRate = 0.8f;
@@ -184,6 +186,9 @@ namespace SA
 
 				public float upperCenterLegLerpRate = 1.0f;
 				public float upperSpineLerpRate = 1.0f;
+
+				public bool upperDirXLimitEnabled = true; // Effective for spineLimitEnabled && spineLimitAngleX
+				public float upperDirXLimitAngleY = 20.0f;
 
 				public bool spineLimitEnabled = true;
 				public bool spineAccurateLimitEnabled = false;
@@ -392,6 +397,8 @@ namespace SA
 				public CachedDegreesToSin upperEyesLimitThetaYUp = CachedDegreesToSin.zero;
 				public CachedDegreesToSin upperEyesLimitThetaYDown = CachedDegreesToSin.zero;
 
+				public CachedDegreesToSin upperDirXLimitThetaY = CachedDegreesToSin.zero;
+
 				public CachedScaledValue spineLimitAngleX = CachedScaledValue.zero; // Mathf.Deg2Rad(Not sin)
 				public CachedScaledValue spineLimitAngleY = CachedScaledValue.zero; // Mathf.Deg2Rad(Not sin)
 
@@ -448,6 +455,9 @@ namespace SA
 					if( spineLimitAngleY._a != settingsBodyIK.spineLimitAngleY ) {
 						spineLimitAngleY._Reset( settingsBodyIK.spineLimitAngleY, Mathf.Deg2Rad );
 					}
+					if( upperDirXLimitThetaY._degrees != settingsBodyIK.upperDirXLimitAngleY ) {
+						upperDirXLimitThetaY._Reset( settingsBodyIK.upperDirXLimitAngleY );
+                    }
 
 					if( upperContinuousPreTranslateRate._value != settingsBodyIK.upperContinuousPreTranslateRate ) {
 						upperContinuousPreTranslateRate._Reset( settingsBodyIK.upperContinuousPreTranslateRate );
@@ -1398,9 +1408,10 @@ namespace SA
 						// todo: Optimize. (for BodyIK)
 
 						// LimbIK : bending / end
-						// BodyIK :  wrist / foot / neck / eyes
+						// BodyIK :  wrist / foot / neck
 						// FingerIK : nothing
-						if( effector.effectorType == EffectorType.HandFinger ) { // Optimize.
+						if( effector.effectorType == EffectorType.Eyes ||
+							effector.effectorType == EffectorType.HandFinger ) { // Optimize.
 #if SAFULLBODYIK_DEBUG
 							effector._hidden_worldPosition = new Vector3();
 #endif

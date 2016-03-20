@@ -203,11 +203,12 @@ namespace SA
 				EditorUtil.GUI.Field( "Automatic Configure Spine Enabled", ref settings.automaticConfigureSpineEnabled );
 				EditorUtil.GUI.Field( "Automatic Configure Roll Enabled", ref settings.automaticConfigureRollEnabled );
 				EditorUtil.GUI.Field( "Roll Enabled", ref settings.rollEnabled );
-				
-                settings.modelTemplate = (FullBodyIK.ModelTemplate)EditorGUILayout.EnumPopup( "Model Template", settings.modelTemplate );
+
+				settings.modelTemplate = (FullBodyIK.ModelTemplate)EditorGUILayout.EnumPopup( "Model Template", settings.modelTemplate );
 
 				_Header( "BodyIK" );
 
+				EditorUtil.GUI.Field( "Force Solve Enabled", ref settings.bodyIK.forceSolveEnabled );
 				EditorUtil.GUI.Field( "Upper Solve Enabled", ref settings.bodyIK.upperSolveEnabled );
 				EditorUtil.GUI.Field( "Lower Solve Enabled", ref settings.bodyIK.lowerSolveEnabled );
 				EditorUtil.GUI.Field( "Compute World Transform", ref settings.bodyIK.computeWorldTransform );
@@ -238,6 +239,10 @@ namespace SA
 				EditorUtil.GUI.Slider01( "Upper PostTranslate Rate", ref settings.bodyIK.upperPostTranslateRate );
 				EditorUtil.GUI.Slider01( "Upper CenterLeg Lerp Rate", ref settings.bodyIK.upperCenterLegLerpRate );
 				EditorUtil.GUI.Slider01( "Upper Spine Lerp Rate", ref settings.bodyIK.upperSpineLerpRate );
+
+				GUILayout.Label( "Upper DirX", _guiStyle_section );
+				EditorUtil.GUI.Field( "Upper DirX Limit Enabled", ref settings.bodyIK.upperDirXLimitEnabled );
+				EditorUtil.GUI.Slider( "Upper DirX Limit Angle Y", ref settings.bodyIK.upperDirXLimitAngleY, 0.0f, 89.99f );
 
 				GUILayout.Label( "Spine", _guiStyle_section );
 				EditorUtil.GUI.Field( "Spine Limit Enabled", ref settings.bodyIK.spineLimitEnabled );

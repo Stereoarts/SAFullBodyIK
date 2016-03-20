@@ -501,6 +501,8 @@ namespace SA
 		public static extern bool SAFBIKVecNormalize2( ref Vector3 v0, ref Vector3 v1 );
 		[DllImport( "SAFullBodyIKPlugin" )]
 		public static extern bool SAFBIKVecNormalize3( ref Vector3 v0, ref Vector3 v1, ref Vector3 v2 );
+		[DllImport( "SAFullBodyIKPlugin" )]
+		public static extern bool SAFBIKVecNormalize4( ref Vector3 v0, ref Vector3 v1, ref Vector3 v2, ref Vector3 v3 );
 
 		[DllImport( "SAFullBodyIKPlugin" )]
 		public static extern void SAFBIKMatMult( out Matrix3x3 ret, ref Matrix3x3 lhs, ref Matrix3x3 rhs );
@@ -780,6 +782,15 @@ namespace SA
 			bool r1 = SAFBIKVecNormalize( ref v1 );
 			bool r2 = SAFBIKVecNormalize( ref v2 );
 			return r0 && r1 && r2;
+		}
+
+		public static bool SAFBIKVecNormalize3( ref Vector3 v0, ref Vector3 v1, ref Vector3 v2, ref Vector3 v3 )
+		{
+			bool r0 = SAFBIKVecNormalize( ref v0 );
+			bool r1 = SAFBIKVecNormalize( ref v1 );
+			bool r2 = SAFBIKVecNormalize( ref v2 );
+			bool r3 = SAFBIKVecNormalize( ref v3 );
+			return r0 && r1 && r2 && r3;
 		}
 
 		public static void SAFBIKMatMult( out Matrix3x3 ret, ref Matrix3x3 lhs, ref Matrix3x3 rhs )
@@ -2178,6 +2189,37 @@ namespace SA
 			}
 
 			dir = tmp;
+			return true;
+		}
+
+		public static bool _LimitToPlaneDirY( ref Vector3 dir, Vector3 planeDir, float thetaY )
+		{
+			float d = Vector3.Dot( dir, planeDir );
+			if( d <= IKEpsilon && d >= -IKEpsilon ) {
+				return false;
+			}
+
+			if( d <= thetaY && d >= -thetaY ) {
+				return true;
+			}
+
+			Vector3 tmp = dir - planeDir * d;
+			float tmpLen = SAFBIKVecLength( ref tmp );
+			if( tmpLen <= FLOAT_EPSILON ) {
+				return false;
+			}
+
+			float targetLen = SAFBIKSqrt( 1.0f - thetaY * thetaY );
+
+			tmp *= targetLen / tmpLen;
+
+			dir = tmp;
+			if( d >= 0.0f ) {
+				dir += planeDir * thetaY;
+			} else {
+				dir -= planeDir * thetaY;
+			}
+
 			return true;
 		}
 

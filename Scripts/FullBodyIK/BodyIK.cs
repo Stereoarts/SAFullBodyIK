@@ -21,6 +21,8 @@ namespace SA
 			Bone[] _spineBones; // Null accepted.
 			bool[] _spineEnabled; // Null accepted.
 			Matrix3x3[] _spinePrevCenterArmToChildBasis; // Null accepted.
+			Matrix3x3[] _spineCenterArmToChildBasis; // Null accepted.
+
 			Bone _spineBone; // Null accepted.
 			Bone _spineUBone; // Null accepted.
 			Bone _neckBone; // Null accepted.
@@ -77,6 +79,7 @@ namespace SA
 
 				public float neckPull = 0.0f;
 				public float headPull = 0.0f;
+				public float eyesRate = 0.0f;
 				public float neckHeadPull = 0.0f;
 				public float[] armPull = new float[2];
 				public float[] elbowPull = new float[2];
@@ -112,6 +115,7 @@ namespace SA
 			float _defaultNearArmToNearArmLen = 0.0f;
 			float _defaultNearArmToNearArmHalfLen = 0.0f;
 			float _defaultCenterLegToCeterArmLen = 0.0f;
+			float _defaultCenterLegToNeckLen = 0.0f;
 
 			Vector3 _defaultCenterEyePos = Vector3.zero;
 
@@ -205,9 +209,13 @@ namespace SA
 					int spineLength = _spineBones.Length;
 					_spineDirXRate = new float[spineLength];
 
-					_spinePrevCenterArmToChildBasis = new Matrix3x3[spineLength];
-					for( int i = 0; i != spineLength; ++i ) {
-						_spinePrevCenterArmToChildBasis[i] = Matrix3x3.identity;
+					if( spineLength > 1 ) {
+						_spinePrevCenterArmToChildBasis = new Matrix3x3[spineLength - 1];
+						_spineCenterArmToChildBasis = new Matrix3x3[spineLength - 1];
+						for( int i = 0; i != spineLength - 1; ++i ) {
+							_spinePrevCenterArmToChildBasis[i] = Matrix3x3.identity;
+							_spineCenterArmToChildBasis[i] = Matrix3x3.identity;
+						}
 					}
 				}
 			}
@@ -264,6 +272,9 @@ namespace SA
 					_solverCaches.defaultCenterLegPos = _defaultCenterLegPos;
 
 					_defaultCenterLegToCeterArmLen = SAFBIKVecLength2( ref _defaultCenterLegPos, ref _defaultCenterArmPos );
+					if( _neckBone != null ) {
+						_defaultCenterLegToNeckLen = SAFBIKVecLength2( ref _defaultCenterLegPos, ref _neckBone._defaultPosition );
+					}
 
 					if( _footEffectors != null ) {
 						if( _footEffectors[0].bone != null && _footEffectors[1].bone != null ) {
@@ -334,22 +345,27 @@ namespace SA
 							Vector3 armDirX = _internalValues.defaultRootBasis.column0;
 
 							int spineLength = _spineBones.Length;
-							for( int i = 0; i != spineLength; ++i ) {
+
+							for( int i = 0; i < spineLength - 1; ++i ) {
 								Matrix3x3 prevToCenterArmBasis;
+								Matrix3x3 currToNeckBasis;
 
 								Vector3 prevPos = (i != 0) ? _spineBones[i - 1]._defaultPosition : _defaultCenterLegPos;
 								Vector3 dirY0 = _defaultCenterArmPos - prevPos;
+								Vector3 dirY1 = _defaultCenterArmPos - _spineBones[i]._defaultPosition;
 
-								if( !SAFBIKVecNormalize( ref dirY0 ) ) {
+								if( !SAFBIKVecNormalize2( ref dirY0, ref dirY1 ) ) {
 									continue;
 								}
 
-								if( !SAFBIKComputeBasisFromXYLockY( out prevToCenterArmBasis, ref armDirX, ref dirY0 ) ) {
+								if( !SAFBIKComputeBasisFromXYLockY( out prevToCenterArmBasis, ref armDirX, ref dirY0 ) ||
+									!SAFBIKComputeBasisFromXYLockY( out currToNeckBasis, ref armDirX, ref dirY1 ) ) {
 									continue;
 								}
 
 								SAFBIKMatMultInv0( out _spinePrevCenterArmToChildBasis[i], ref prevToCenterArmBasis, ref _spineBones[i]._localAxisBasis );
-                            }
+								SAFBIKMatMultInv0( out _spineCenterArmToChildBasis[i], ref currToNeckBasis, ref _spineBones[i]._localAxisBasis );
+							}
 						}
 					}
 				}
@@ -357,7 +373,8 @@ namespace SA
 
 			public bool Solve()
 			{
-				if( !_IsEffectorEnabled() ) {
+				bool isEffectorEnabled = _IsEffectorEnabled();
+				if( !isEffectorEnabled && !_settings.bodyIK.forceSolveEnabled ) {
 					return false;
 				}
 
@@ -477,17 +494,22 @@ namespace SA
 				Assert( temp != null );
 
 				float hipsPull = _hipsEffector.positionEnabled ? _hipsEffector.pull : 0.0f;
-				float eyesPull = _eyesEffector.positionEnabled ? _eyesEffector.pull : 0.0f;
 				float neckPull = _solverCaches.neckPull;
 				float headPull = _solverCaches.headPull;
+				float eyesRate = _solverCaches.eyesRate; // pull * positionWeight
                 float[] armPull = _solverCaches.armPull;
 				float[] elbowPull = _solverCaches.elbowPull;
 				float[] wristPull = _solverCaches.wristPull;
-				if( hipsPull <= IKEpsilon && neckPull <= IKEpsilon && headPull <= IKEpsilon && eyesPull <= IKEpsilon &&
-					armPull[0] <= IKEpsilon && armPull[1] <= IKEpsilon &&
-					elbowPull[0] <= IKEpsilon && elbowPull[1] <= IKEpsilon &&
-					wristPull[0] <= IKEpsilon && wristPull[1] <= IKEpsilon ) {
-					return false; // No moved.
+
+				if( _settings.bodyIK.forceSolveEnabled ) {
+					// Nothing.
+				} else {
+					if( hipsPull <= IKEpsilon && neckPull <= IKEpsilon && headPull <= IKEpsilon && eyesRate <= IKEpsilon &&
+						armPull[0] <= IKEpsilon && armPull[1] <= IKEpsilon &&
+						elbowPull[0] <= IKEpsilon && elbowPull[1] <= IKEpsilon &&
+						wristPull[0] <= IKEpsilon && wristPull[1] <= IKEpsilon ) {
+						return false; // No moved.
+					}
 				}
 
 				float upperCenterLegRotateRate = _internalValues.bodyIK.upperCenterLegRotateRate.value;
@@ -552,11 +574,22 @@ namespace SA
 
 				centerArmDirY = centerArmPos - temp.centerLegPos;
 				centerArmDirY2 = centerArmPos2 - temp.centerLegPos;
-				SAFBIKVecNormalize2( ref centerArmDirY, ref centerArmDirY2 );
+				if( !SAFBIKVecNormalize2( ref centerArmDirY, ref centerArmDirY2 ) ) {
+					return false;
+				}
 
-				if( !_FitToPlaneDir( ref centerArmDirX, centerArmDirY ) ||
-					!_FitToPlaneDir( ref centerArmDirX2, centerArmDirY2 ) ) {
-					return false; // Failsafe.(No moved.)
+				if( _settings.bodyIK.upperDirXLimitEnabled ) {
+					if( _internalValues.bodyIK.upperDirXLimitThetaY.sin <= IKEpsilon ) {
+						if( !_FitToPlaneDir( ref centerArmDirX, centerArmDirY ) ||
+							!_FitToPlaneDir( ref centerArmDirX2, centerArmDirY2 ) ) {
+							return false;
+						}
+					} else {
+						if( !_LimitToPlaneDirY( ref centerArmDirX, centerArmDirY, _internalValues.bodyIK.upperDirXLimitThetaY.sin ) ||
+							!_LimitToPlaneDirY( ref centerArmDirX2, centerArmDirY2, _internalValues.bodyIK.upperDirXLimitThetaY.sin ) ) {
+							return false;
+						}
+					}
 				}
 
 				// Limit for spine.
@@ -623,13 +656,13 @@ namespace SA
 				// for eyes.
 				// presolvedCenterLegPos2 = presolveCenterLegPos + presolved postTranslate.
 				Vector3 presolvedCenterLegPos2 = temp.centerLegPos;
-				if( eyesPull > IKEpsilon ) {
+				if( eyesRate > IKEpsilon ) {
 					Vector3 source = temp.centerLegPos + centerArmDirY2 * _defaultCenterLegToCeterArmLen;
 					presolvedCenterLegPos2 += temp.targetCenterArmPos - source;
                 }
 
 				// Eyes
-				if( eyesPull > IKEpsilon ) {
+				if( eyesRate > IKEpsilon ) {
 					// Based on centerArmDirX2 / centerArmDirY2
 					Matrix3x3 toBasis;
 					if( SAFBIKComputeBasisFromXYLockY( out toBasis, ref centerArmDirX2, ref centerArmDirY2 ) ) {
@@ -642,7 +675,7 @@ namespace SA
 						Vector3 eyePos;
 						SAFBIKMatMultVecPreSubAdd( out eyePos, ref toBasisGlobal, ref _defaultCenterEyePos, ref _defaultCenterLegPos, ref presolvedCenterLegPos2 );
 
-						Vector3 eyeDir = _eyesEffector._hidden_worldPosition - eyePos;
+						Vector3 eyeDir = _eyesEffector.worldPosition - eyePos; // Memo: Not use _eyesEffector._hidden_worldPosition
 
 						{
 							float upperEyesXLimit = _internalValues.bodyIK.upperEyesLimitThetaX.sin;
@@ -688,8 +721,8 @@ namespace SA
 
 						SAFBIKMatMultRet0( ref toBasis, ref _centerLegToArmBaseToBoneBasis );
 
-						float upperEyesRate1 = _settings.bodyIK.upperEyesToCenterLegRate * eyesPull;
-						float upperEyesRate2 = _settings.bodyIK.upperEyesToSpineRate * eyesPull;
+						float upperEyesRate1 = _settings.bodyIK.upperEyesToCenterLegRate * eyesRate;
+						float upperEyesRate2 = _settings.bodyIK.upperEyesToSpineRate * eyesRate;
 
 						Matrix3x3 solveBasis;
 						if( upperEyesRate2 > IKEpsilon ) {
@@ -773,66 +806,97 @@ namespace SA
 
 				{
 					float centerLegToArmLength = _defaultCenterLegToCeterArmLen;
+
 					Vector3 centerLegBasisX = temp.centerLegBasis.column0;
 					Vector3 centerArmPosY2 = centerArmDirY2 * centerLegToArmLength + temp.centerLegPos;
 					float upperSpineLerpRate = _settings.bodyIK.upperSpineLerpRate;
-
+					
 					for( int i = 0; i != spineLength; ++i ) {
 						if( !_spineEnabled[i] ) {
 							continue;
 						}
 
 						Vector3 origPos = temp.spinePos[i];
-						Vector3 childPos = (i + 1 == spineLength) ? temp.neckPos : temp.spinePos[i + 1];
-						Vector3 prevPos = (i != 0) ? temp.spinePos[i - 1] : temp.centerLegPos;
 
-						Vector3 currentDirX = temp.nearArmPos[1] - temp.nearArmPos[0];
-						Vector3 currentDirY = childPos - origPos;
+						if( i + 1 == spineLength ) {
+							Vector3 currentDirX = temp.nearArmPos[1] - temp.nearArmPos[0];
+							Vector3 currentDirY = temp.centerArmPos - origPos;
 
-						Vector3 targetDirX = centerArmDirX2;
-						Vector3 targetDirY;
+							Vector3 targetDirX = centerArmDirX2;
+							Vector3 targetDirY = centerArmPosY2 - origPos;
 
-						Vector3 tempDirY = centerArmPosY2 - prevPos;
-
-						if( !SAFBIKVecNormalize3( ref currentDirX, ref currentDirY, ref tempDirY ) ) {
-							continue; // Skip.
-						}
-
-						Matrix3x3 prevToNearArmBasis;
-						if( !SAFBIKComputeBasisFromXYLockY( out prevToNearArmBasis, ref currentDirX, ref tempDirY ) ) {
-							continue;
-						}
-
-						// Get prevPos to child dir.
-						SAFBIKMatMultCol1( out targetDirY, ref prevToNearArmBasis, ref _spinePrevCenterArmToChildBasis[i] );
-
-						float spineDirXLegToArmRate = _spineDirXRate[i];
-
-						// Simply Lerp.(dirX)
-						currentDirX = Vector3.Lerp( centerLegBasisX, currentDirX, spineDirXLegToArmRate );
-						targetDirX = Vector3.Lerp( centerLegBasisX, targetDirX, spineDirXLegToArmRate );
-
-						// Simply Lerp.(dirY)
-						if( i + 1 != spineLength ) { // Exclude spineU
-							targetDirY = Vector3.Lerp( currentDirY, targetDirY, _settings.bodyIK.spineDirYLerpRate );
-							if( !SAFBIKVecNormalize( ref targetDirY ) ) { // Failsafe.
-								targetDirY = currentDirY;
+							if( !SAFBIKVecNormalize2( ref currentDirY, ref targetDirY ) ) {
+								continue; // Skip.
 							}
+
+							Matrix3x3 toBasis;
+							SAFBIKComputeBasisFromXYLockY( out toBasis, ref targetDirX, ref targetDirY );
+							Matrix3x3 fromBasis;
+							SAFBIKComputeBasisFromXYLockY( out fromBasis, ref currentDirX, ref currentDirY );
+
+							Matrix3x3 rotateBasis;
+							SAFBIKMatMultInv1( out rotateBasis, ref toBasis, ref fromBasis );
+
+							if( upperSpineLerpRate < 1.0f - IKEpsilon ) {
+								SAFBIKMatFastLerpToIdentity( ref rotateBasis, 1.0f - upperSpineLerpRate );
+							}
+
+							temp.UpperRotation( i, ref rotateBasis );
+						} else {
+							Vector3 childPos = (i + 1 == spineLength) ? temp.neckPos : temp.spinePos[i + 1];
+							Vector3 prevPos = (i != 0) ? temp.spinePos[i - 1] : temp.centerLegPos;
+
+							Vector3 currentDirX = temp.nearArmPos[1] - temp.nearArmPos[0];
+							Vector3 currentDirY = childPos - origPos;
+
+							Vector3 targetDirX = centerArmDirX2;
+							Vector3 targetDirY = centerArmPosY2 - prevPos;
+							Vector3 targetDirY2 = centerArmPosY2 - origPos;
+
+							if( !SAFBIKVecNormalize4( ref currentDirX, ref currentDirY, ref targetDirY, ref targetDirY2 ) ) {
+								continue; // Skip.
+							}
+
+							Matrix3x3 prevToNearArmBasis;
+							Matrix3x3 origToNearArmBasis;
+
+							if( !SAFBIKComputeBasisFromXYLockY( out prevToNearArmBasis, ref currentDirX, ref targetDirY ) ||
+								!SAFBIKComputeBasisFromXYLockY( out origToNearArmBasis, ref currentDirX, ref targetDirY2 ) ) {
+								continue;
+							}
+
+							// Get prevPos to child dir.
+							SAFBIKMatMultCol1( out targetDirY, ref prevToNearArmBasis, ref _spinePrevCenterArmToChildBasis[i] );
+							SAFBIKMatMultCol1( out targetDirY2, ref origToNearArmBasis, ref _spineCenterArmToChildBasis[i] );
+
+							float spineDirXLegToArmRate = _spineDirXRate[i];
+
+							// Simply Lerp.(dirX)
+							currentDirX = Vector3.Lerp( centerLegBasisX, currentDirX, spineDirXLegToArmRate );
+							targetDirX = Vector3.Lerp( centerLegBasisX, targetDirX, spineDirXLegToArmRate );
+
+							// Simply Lerp.(dirY)
+							if( i + 1 != spineLength ) { // Exclude spineU
+								targetDirY = Vector3.Lerp( targetDirY, targetDirY2, _settings.bodyIK.spineDirYLerpRate );
+								if( !SAFBIKVecNormalize( ref targetDirY ) ) { // Failsafe.
+									targetDirY = currentDirY;
+								}
+							}
+
+							Matrix3x3 toBasis;
+							SAFBIKComputeBasisFromXYLockY( out toBasis, ref targetDirX, ref targetDirY );
+							Matrix3x3 fromBasis;
+							SAFBIKComputeBasisFromXYLockY( out fromBasis, ref currentDirX, ref currentDirY );
+
+							Matrix3x3 rotateBasis;
+							SAFBIKMatMultInv1( out rotateBasis, ref toBasis, ref fromBasis );
+
+							if( upperSpineLerpRate < 1.0f - IKEpsilon ) {
+								SAFBIKMatFastLerpToIdentity( ref rotateBasis, 1.0f - upperSpineLerpRate );
+							}
+
+							temp.UpperRotation( i, ref rotateBasis );
 						}
-
-						Matrix3x3 toBasis;
-						SAFBIKComputeBasisFromXYLockY( out toBasis, ref targetDirX, ref targetDirY );
-						Matrix3x3 fromBasis;
-						SAFBIKComputeBasisFromXYLockY( out fromBasis, ref currentDirX, ref currentDirY );
-
-						Matrix3x3 rotateBasis;
-						SAFBIKMatMultInv1( out rotateBasis, ref toBasis, ref fromBasis );
-
-						if( upperSpineLerpRate < 1.0f - IKEpsilon ) {
-							SAFBIKMatFastLerpToIdentity( ref rotateBasis, 1.0f - upperSpineLerpRate );
-						}
-
-						temp.UpperRotation( i, ref rotateBasis );
 					}
 				}
 
@@ -1133,18 +1197,23 @@ namespace SA
 
 			bool _IsEffectorEnabled()
 			{
-				if( _hipsEffector.effectorEnabled ||
-					_neckEffector.effectorEnabled ||
-					_eyesEffector.effectorEnabled ||
-                    _armEffectors[0].effectorEnabled ||
-					_armEffectors[1].effectorEnabled ) {
+				if( (_hipsEffector.positionEnabled && _hipsEffector.pull > IKEpsilon) ||
+					(_hipsEffector.rotationEnabled && _hipsEffector.rotationWeight > IKEpsilon) ||
+					(_neckEffector.positionEnabled && _neckEffector.pull > IKEpsilon) ||
+					(_eyesEffector.positionEnabled && (_eyesEffector.positionWeight > IKEpsilon && _eyesEffector.pull > IKEpsilon)) ||
+					(_armEffectors[0].positionEnabled && _armEffectors[0].pull > IKEpsilon) ||
+					(_armEffectors[1].positionEnabled && _armEffectors[1].pull > IKEpsilon) ) {
 					return true;
 				}
 
-				if( _wristEffectors[0].positionEnabled ||
-					_wristEffectors[1].positionEnabled ||
-					_footEffectors[0].positionEnabled ||
-					_footEffectors[1].positionEnabled ) {
+				if( (_elbowEffectors[0].positionEnabled && _elbowEffectors[0].pull > IKEpsilon) ||
+					(_elbowEffectors[1].positionEnabled && _elbowEffectors[1].pull > IKEpsilon) ||
+					(_kneeEffectors[0].positionEnabled && _kneeEffectors[0].pull > IKEpsilon) ||
+					(_kneeEffectors[1].positionEnabled && _kneeEffectors[1].pull > IKEpsilon) ||
+					(_wristEffectors[0].positionEnabled && _wristEffectors[0].pull > IKEpsilon) ||
+					(_wristEffectors[1].positionEnabled && _wristEffectors[1].pull > IKEpsilon) ||
+					(_footEffectors[0].positionEnabled && _footEffectors[0].pull > IKEpsilon) ||
+					(_footEffectors[1].positionEnabled && _footEffectors[1].pull > IKEpsilon) ) {
 					return true;
 				}
 
@@ -1164,6 +1233,9 @@ namespace SA
 				}
 				if( _headEffector != null ) {
 					_solverCaches.headPull = _headEffector.positionEnabled ? _headEffector.pull : 0.0f;
+				}
+				if( _eyesEffector != null ) {
+					_solverCaches.eyesRate = _eyesEffector.positionEnabled ? (_eyesEffector.pull * _eyesEffector.positionWeight) : 0.0f;
 				}
 				for( int i = 0; i != 2; ++i ) {
 					if( _armEffectors[i] != null ) {
@@ -1912,7 +1984,6 @@ namespace SA
 				{
 					int idx1 = 1 - idx0;
 
-					//float neckPull = _solverCaches.neckPull;
 					float neckHeadPull = _solverCaches.neckHeadPull;
 					float[] armPull = _solverCaches.armPull;
 					float[] elbowPull = _solverCaches.elbowPull;
@@ -2008,6 +2079,8 @@ namespace SA
 						elbowPull[0] <= IKEpsilon && elbowPull[1] <= IKEpsilon &&
 						armPull[0] <= IKEpsilon && armPull[1] <= IKEpsilon &&
 						neckPull <= IKEpsilon && headPull <= IKEpsilon ) {
+						targetCenterArmPos = this.currentCenterArmPos;
+						targetCenterArmDir = this.currentCenterArmDir;
 						return false;
 					}
 
