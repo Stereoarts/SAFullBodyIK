@@ -1681,6 +1681,45 @@ namespace SA
 			}
 		}
 
+		public struct CachedDeg2RadScaledValue
+		{
+			public float _a;
+			public float _b;
+			public float value;
+
+			public static readonly CachedDeg2RadScaledValue zero = new CachedDeg2RadScaledValue( 0.0f, 0.0f, 0.0f );
+
+			public CachedDeg2RadScaledValue( float a, float b )
+			{
+				_a = a;
+				_b = b;
+				value = a * b * Mathf.Deg2Rad;
+			}
+
+			public CachedDeg2RadScaledValue( float a, float b, float value_ )
+			{
+				_a = a;
+				_b = b;
+				value = value_;
+			}
+
+			public void Reset( float a, float b )
+			{
+				if( _a != a || _b != b ) {
+					_a = a;
+					_b = b;
+					value = a * b * Mathf.Deg2Rad;
+				}
+			}
+
+			public void _Reset( float a, float b )
+			{
+				_a = a;
+				_b = b;
+				value = a * b * Mathf.Deg2Rad;
+			}
+		}
+
 		//--------------------------------------------------------------------------------------------------------------------
 
 		public static bool SAFBIKComputeBasisFromXZLockX( out Matrix3x3 basis, Vector3 dirX, Vector3 dirZ )

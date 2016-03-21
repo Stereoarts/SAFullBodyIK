@@ -123,6 +123,43 @@ namespace SA
 
 		//----------------------------------------------------------------------------------------------------------------
 
+		static bool _ComputeEyesRange( ref Vector3 eyesDir, float rangeTheta )
+		{
+			if( rangeTheta >= -IKEpsilon ) { // range
+				if( eyesDir.z < 0.0f ) {
+					eyesDir.z = -eyesDir.z;
+                }
+
+				return true;
+			} else if( rangeTheta >= -1.0f + IKEpsilon ) {
+				float shiftZ = -rangeTheta;
+				eyesDir.z = (eyesDir.z + shiftZ);
+				if( eyesDir.z < 0.0f ) {
+					eyesDir.z *= 1.0f / (1.0f - shiftZ);
+				} else {
+					eyesDir.z *= 1.0f / (1.0f + shiftZ);
+				}
+
+				float xyLen = SAFBIKSqrt( eyesDir.x * eyesDir.x + eyesDir.y * eyesDir.y );
+				if( xyLen > FLOAT_EPSILON ) {
+					float xyLenTo = SAFBIKSqrt( 1.0f - eyesDir.z * eyesDir.z );
+					float xyLenScale = xyLenTo / xyLen;
+					eyesDir.x *= xyLenScale;
+					eyesDir.y *= xyLenScale;
+					return true;
+				} else {
+					eyesDir.x = 0.0f;
+					eyesDir.y = 0.0f;
+					eyesDir.z = 1.0f;
+					return false;
+				}
+			} else {
+				return true;
+			}
+		}
+
+		//----------------------------------------------------------------------------------------------------------------
+
 #if SAFULLBODYIK_DEBUG
 		public enum DebugValueType
 		{

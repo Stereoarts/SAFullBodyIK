@@ -140,6 +140,8 @@ namespace SA
 			public AutomaticBool resetTransforms = AutomaticBool.Auto;
 			public SyncDisplacement syncDisplacement = SyncDisplacement.Disable;
 
+			public AutomaticBool shoulderDirYAsNeck = AutomaticBool.Auto;
+
 			public bool automaticPrepareHumanoid = true;
 			public bool automaticConfigureSpineEnabled = false;
 
@@ -205,12 +207,13 @@ namespace SA
 				public float upperNeckToSpineRate = 0.9f;
 				public float upperEyesToCenterLegRate = 0.2f;
 				public float upperEyesToSpineRate = 0.5f;
-				public float upperEyesRateYUp = 0.25f;
-				public float upperEyesRateYDown = 0.5f;
-				public float upperEyesLimitAngleX = 35.0f;
-				public float upperEyesLimitAngleYUp = 10.0f;
-				public float upperEyesLimitAngleYDown = 45.0f;
-				public float upperEyesBackOffsetZ = 0.5f; // Lock when behind looking.
+				public float upperEyesYawRate = 0.8f;
+				public float upperEyesPitchUpRate = 0.25f;
+				public float upperEyesPitchDownRate = 0.5f;
+				public float upperEyesLimitYaw = 80.0f;
+				public float upperEyesLimitPitchUp = 10.0f;
+				public float upperEyesLimitPitchDown = 45.0f;
+				public float upperEyesRangeAngle = 160.0f;
 			}
 
 			[System.Serializable]
@@ -271,6 +274,21 @@ namespace SA
 			[System.Serializable]
 			public class HeadIK
 			{
+				public float neckLimitPitchUp = 15.0f;
+				public float neckLimitPitchDown = 30.0f;
+				public float neckLimitRoll = 5.0f;
+
+				public float eyesToNeckPitchRate = 0.4f;
+
+				public float headLimitYaw = 80.0f;
+				public float headLimitPitchUp = 15.0f;
+				public float headLimitPitchDown = 15.0f;
+				public float headLimitRoll = 5.0f;
+
+				public float eyesToHeadYawRate = 0.8f;
+				public float eyesToHeadPitchRate = 0.5f;
+
+				public float eyesRangeAngle = 110.0f;
 			}
 
 			[System.Serializable]
@@ -393,9 +411,10 @@ namespace SA
 				public CachedRate01 upperSpineRotateRate = CachedRate01.zero;
 				public bool isFuzzyUpperCenterLegAndSpineRotationRate = true;
 
-				public CachedDegreesToSin upperEyesLimitThetaX = CachedDegreesToSin.zero;
-				public CachedDegreesToSin upperEyesLimitThetaYUp = CachedDegreesToSin.zero;
-				public CachedDegreesToSin upperEyesLimitThetaYDown = CachedDegreesToSin.zero;
+				public CachedDegreesToSin upperEyesLimitYaw = CachedDegreesToSin.zero;
+				public CachedDegreesToSin upperEyesLimitPitchUp = CachedDegreesToSin.zero;
+				public CachedDegreesToSin upperEyesLimitPitchDown = CachedDegreesToSin.zero;
+				public CachedDegreesToCos upperEyesRangeTheta = CachedDegreesToCos.zero;
 
 				public CachedDegreesToSin upperDirXLimitThetaY = CachedDegreesToSin.zero;
 
@@ -439,14 +458,17 @@ namespace SA
 						isFuzzyUpperCenterLegAndSpineRotationRate = IsFuzzy( upperCenterLegRotateRate.value, upperSpineRotateRate.value );
 					}
 
-					if( upperEyesLimitThetaX._degrees != settingsBodyIK.upperEyesLimitAngleX ) {
-						upperEyesLimitThetaX._Reset( settingsBodyIK.upperEyesLimitAngleX );
+					if( upperEyesLimitYaw._degrees != settingsBodyIK.upperEyesLimitYaw ) {
+						upperEyesLimitYaw._Reset( settingsBodyIK.upperEyesLimitYaw );
 					}
-					if( upperEyesLimitThetaYUp._degrees != settingsBodyIK.upperEyesLimitAngleYUp ) {
-						upperEyesLimitThetaYUp._Reset( settingsBodyIK.upperEyesLimitAngleYUp );
+					if( upperEyesLimitPitchUp._degrees != settingsBodyIK.upperEyesLimitPitchUp ) {
+						upperEyesLimitPitchUp._Reset( settingsBodyIK.upperEyesLimitPitchUp );
 					}
-					if( upperEyesLimitThetaYDown._degrees != settingsBodyIK.upperEyesLimitAngleYDown ) {
-						upperEyesLimitThetaYDown._Reset( settingsBodyIK.upperEyesLimitAngleYDown );
+					if( upperEyesLimitPitchDown._degrees != settingsBodyIK.upperEyesLimitPitchDown ) {
+						upperEyesLimitPitchDown._Reset( settingsBodyIK.upperEyesLimitPitchDown );
+					}
+					if( upperEyesRangeTheta._degrees != settingsBodyIK.upperEyesRangeAngle ) {
+						upperEyesRangeTheta._Reset( settingsBodyIK.upperEyesRangeAngle );
 					}
 
 					if( spineLimitAngleX._a != settingsBodyIK.spineLimitAngleX ) {
@@ -521,8 +543,55 @@ namespace SA
 				}
 			}
 
+			public class HeadIK
+			{
+				public CachedDegreesToSin neckLimitPitchUpTheta = CachedDegreesToSin.zero;
+				public CachedDegreesToSin neckLimitPitchDownTheta = CachedDegreesToSin.zero;
+				public CachedDegreesToSin neckLimitRollTheta = CachedDegreesToSin.zero;
+
+				public CachedDegreesToSin headLimitYawTheta = CachedDegreesToSin.zero;
+				public CachedDegreesToSin headLimitPitchUpTheta = CachedDegreesToSin.zero;
+				public CachedDegreesToSin headLimitPitchDownTheta = CachedDegreesToSin.zero;
+				public CachedDegreesToSin headLimitRollTheta = CachedDegreesToSin.zero;
+
+				public CachedDegreesToCos eyesRangeTheta = CachedDegreesToCos.zero;
+
+				public void Update( Settings.HeadIK settingsHeadIK )
+				{
+					Assert( settingsHeadIK != null );
+
+					if( neckLimitPitchUpTheta._degrees != settingsHeadIK.neckLimitPitchUp ) {
+						neckLimitPitchUpTheta._Reset( settingsHeadIK.neckLimitPitchUp );
+					}
+					if( neckLimitPitchDownTheta._degrees != settingsHeadIK.neckLimitPitchDown ) {
+						neckLimitPitchDownTheta._Reset( settingsHeadIK.neckLimitPitchDown );
+					}
+					if( neckLimitRollTheta._degrees != settingsHeadIK.neckLimitRoll ) {
+						neckLimitRollTheta._Reset( settingsHeadIK.neckLimitRoll );
+					}
+
+					if( headLimitYawTheta._degrees != settingsHeadIK.headLimitYaw ) {
+						headLimitYawTheta._Reset( settingsHeadIK.headLimitYaw );
+					}
+					if( headLimitPitchUpTheta._degrees != settingsHeadIK.headLimitPitchUp ) {
+						headLimitPitchUpTheta._Reset( settingsHeadIK.headLimitPitchUp );
+					}
+					if( headLimitPitchDownTheta._degrees != settingsHeadIK.headLimitPitchDown ) {
+						headLimitPitchDownTheta._Reset( settingsHeadIK.headLimitPitchDown );
+					}
+					if( headLimitRollTheta._degrees != settingsHeadIK.headLimitRoll ) {
+						headLimitRollTheta._Reset( settingsHeadIK.headLimitRoll );
+					}
+					
+					if( eyesRangeTheta._degrees != settingsHeadIK.eyesRangeAngle ) {
+						eyesRangeTheta._Reset( settingsHeadIK.eyesRangeAngle );
+					}
+				}
+			}
+
 			public BodyIK bodyIK = new BodyIK();
 			public LimbIK limbIK = new LimbIK();
+			public HeadIK headIK = new HeadIK();
 		}
 
 		// Memo: Not Serializable
@@ -1269,6 +1338,7 @@ namespace SA
 
 			internalValues.bodyIK.Update( settings.bodyIK );
 			internalValues.limbIK.Update( settings.limbIK );
+			internalValues.headIK.Update( settings.headIK );
         }
 
 		bool _isSyncDisplacementAtLeastOnce = false;
@@ -1422,7 +1492,7 @@ namespace SA
 								Vector3 sourcePosition = destPosition; // Failsafe.
 								if( !internalValues.animatorEnabled && (internalValues.resetTransforms || internalValues.continuousSolverEnabled) ) {
 									if( effector.effectorLocation == EffectorLocation.Hips ) {
-										sourcePosition = internalValues.baseHipsPos;
+										sourcePosition = internalValues.baseHipsPos; // _ComputeBaseHipsTransform()
 									} else {
 										Effector hipsEffector = (bodyEffectors != null) ? bodyEffectors.hips : null;
 										if( hipsEffector != null ) {

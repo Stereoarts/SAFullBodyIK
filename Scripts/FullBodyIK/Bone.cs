@@ -327,22 +327,26 @@ namespace SA
 									}
 
 									if( fullBodyIK.internalValues.shoulderDirYAsNeck == -1 ) {
-										if( spineUBone != null && neckBone != null ) {
-											Vector3 shoulderToSpineU = shoulderBone._defaultLocalDirection;
-											Vector3 shoulderToNeck = neckBone._defaultPosition - shoulderBone._defaultPosition;
-											if( SAFBIKVecNormalize( ref shoulderToNeck ) ) {
-												float shoulderToSpineUTheta = Mathf.Abs( Vector3.Dot( dir, shoulderToSpineU ) );
-												float shoulderToNeckTheta = Mathf.Abs( Vector3.Dot( dir, shoulderToNeck ) );
-												if( shoulderToSpineUTheta < shoulderToNeckTheta ) {
-													fullBodyIK.internalValues.shoulderDirYAsNeck = 0;
+										if( fullBodyIK.settings.shoulderDirYAsNeck == AutomaticBool.Auto ) {
+											if( spineUBone != null && neckBone != null ) {
+												Vector3 shoulderToSpineU = shoulderBone._defaultLocalDirection;
+												Vector3 shoulderToNeck = neckBone._defaultPosition - shoulderBone._defaultPosition;
+												if( SAFBIKVecNormalize( ref shoulderToNeck ) ) {
+													float shoulderToSpineUTheta = Mathf.Abs( Vector3.Dot( dir, shoulderToSpineU ) );
+													float shoulderToNeckTheta = Mathf.Abs( Vector3.Dot( dir, shoulderToNeck ) );
+													if( shoulderToSpineUTheta < shoulderToNeckTheta ) {
+														fullBodyIK.internalValues.shoulderDirYAsNeck = 0;
+													} else {
+														fullBodyIK.internalValues.shoulderDirYAsNeck = 1;
+													}
 												} else {
-													fullBodyIK.internalValues.shoulderDirYAsNeck = 1;
+													fullBodyIK.internalValues.shoulderDirYAsNeck = 0;
 												}
 											} else {
 												fullBodyIK.internalValues.shoulderDirYAsNeck = 0;
 											}
 										} else {
-											fullBodyIK.internalValues.shoulderDirYAsNeck = 0;
+											fullBodyIK.internalValues.shoulderDirYAsNeck = (fullBodyIK.settings.shoulderDirYAsNeck != AutomaticBool.Disable) ? 1 : 0;
                                         }
 									}
 

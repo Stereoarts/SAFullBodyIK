@@ -199,6 +199,8 @@ namespace SA
 				settings.resetTransforms = (FullBodyIK.AutomaticBool)EditorGUILayout.EnumPopup( "Reset Transforms", settings.resetTransforms );
 				settings.syncDisplacement = (FullBodyIK.SyncDisplacement)EditorGUILayout.EnumPopup( "Sync Displcement", settings.syncDisplacement );
 
+				settings.shoulderDirYAsNeck = (FullBodyIK.AutomaticBool)EditorGUILayout.EnumPopup( "Shoulder DirY As Neck", settings.shoulderDirYAsNeck );
+
 				EditorUtil.GUI.Field( "Automatic Prepare Humanoid", ref settings.automaticPrepareHumanoid );
 				EditorUtil.GUI.Field( "Automatic Configure Spine Enabled", ref settings.automaticConfigureSpineEnabled );
 				EditorUtil.GUI.Field( "Automatic Configure Roll Enabled", ref settings.automaticConfigureRollEnabled );
@@ -264,12 +266,13 @@ namespace SA
 				GUILayout.Label( "Eyes", _guiStyle_section );
 				EditorUtil.GUI.Slider01( "Upper Eyes To CenterLeg Rate", ref settings.bodyIK.upperEyesToCenterLegRate );
 				EditorUtil.GUI.Slider01( "Upper Eyes To Spine Rate", ref settings.bodyIK.upperEyesToSpineRate );
-				EditorUtil.GUI.Slider01( "Upper Eyes Rate YUp", ref settings.bodyIK.upperEyesRateYUp );
-				EditorUtil.GUI.Slider01( "Upper Eyes Rate YDown", ref settings.bodyIK.upperEyesRateYDown );
-				EditorUtil.GUI.Slider( "Upper Eyes Limit Angle X", ref settings.bodyIK.upperEyesLimitAngleX, 0.0f, 89.99f );
-				EditorUtil.GUI.Slider( "Upper Eyes Limit Angle YUp", ref settings.bodyIK.upperEyesLimitAngleYUp, 0.0f, 89.99f );
-				EditorUtil.GUI.Slider( "Upper Eyes Limit Angle YDown", ref settings.bodyIK.upperEyesLimitAngleYDown, 0.0f, 89.99f );
-				EditorUtil.GUI.Slider( "Upper Eyes Back Offset Z", ref settings.bodyIK.upperEyesBackOffsetZ, 0.0f, 0.99f );
+				EditorUtil.GUI.Slider01( "Upper Eyes Yaw Rate", ref settings.bodyIK.upperEyesYawRate );
+				EditorUtil.GUI.Slider01( "Upper Eyes Pitch Up Rate", ref settings.bodyIK.upperEyesPitchUpRate );
+				EditorUtil.GUI.Slider01( "Upper Eyes Pitch Down Rate", ref settings.bodyIK.upperEyesPitchDownRate );
+				EditorUtil.GUI.Slider( "Upper Eyes Limit Yaw", ref settings.bodyIK.upperEyesLimitYaw, 0.0f, 89.99f );
+				EditorUtil.GUI.Slider( "Upper Eyes Limit Pitch Up", ref settings.bodyIK.upperEyesLimitPitchUp, 0.0f, 89.99f );
+				EditorUtil.GUI.Slider( "Upper Eyes Limit Pitch Down", ref settings.bodyIK.upperEyesLimitPitchDown, 0.0f, 89.99f );
+				EditorUtil.GUI.Slider( "Upper Eyes Range Angle", ref settings.bodyIK.upperEyesRangeAngle, 90.0f, 180.0f );
 
 				_Header( "LimbIK" );
 
@@ -327,6 +330,19 @@ namespace SA
 				GUILayout.Label( "Arm elbow limit angle(Automatic, Manual)", _guiStyle_section );
 				EditorUtil.GUI.Slider( "Elbow Front Inner Limit Angle", ref settings.limbIK.elbowFrontInnerLimitAngle, 0.0f, 90.0f );
 				EditorUtil.GUI.Slider( "Elbow Back Inner Limit Angle", ref settings.limbIK.elbowBackInnerLimitAngle, 0.0f, 90.0f );
+
+				_Header( "HeadIK" );
+				EditorUtil.GUI.Slider( "Neck Limit Pitch Up", ref settings.headIK.neckLimitPitchUp, 0.0f, 89.99f );
+				EditorUtil.GUI.Slider( "Neck Limit Pitch Down", ref settings.headIK.neckLimitPitchDown, 0.0f, 89.99f );
+				EditorUtil.GUI.Slider( "Neck Limit Roll", ref settings.headIK.neckLimitRoll, 0.0f, 89.99f );
+				EditorUtil.GUI.Slider( "Eyes To Neck Pitch Rate", ref settings.headIK.eyesToNeckPitchRate, 0.0f, 1.0f );
+				EditorUtil.GUI.Slider( "Head Limit Yaw", ref settings.headIK.headLimitYaw, 0.0f, 89.99f );
+				EditorUtil.GUI.Slider( "Head Limit Pitch Up", ref settings.headIK.headLimitPitchUp, 0.0f, 89.99f );
+				EditorUtil.GUI.Slider( "Head Limit Pitch Down", ref settings.headIK.headLimitPitchDown, 0.0f, 89.99f );
+				EditorUtil.GUI.Slider( "Head Limit Roll", ref settings.headIK.headLimitRoll, 0.0f, 89.99f );
+				EditorUtil.GUI.Slider( "Eyes To Head Yaw Rate", ref settings.headIK.eyesToHeadYawRate, 0.0f, 1.0f );
+				EditorUtil.GUI.Slider( "Eyes To Head Pitch Rate", ref settings.headIK.eyesToHeadPitchRate, 0.0f, 1.0f );
+				EditorUtil.GUI.Slider( "Eyes Range Angle", ref settings.headIK.eyesRangeAngle, 90.0f, 180.0f );
 			}
 
 #if SAFULLBODYIK_DEBUG

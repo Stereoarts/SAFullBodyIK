@@ -678,33 +678,24 @@ namespace SA
 						Vector3 eyeDir = _eyesEffector.worldPosition - eyePos; // Memo: Not use _eyesEffector._hidden_worldPosition
 
 						{
-							float upperEyesXLimit = _internalValues.bodyIK.upperEyesLimitThetaX.sin;
-							float upperEyesYUpLimit = _internalValues.bodyIK.upperEyesLimitThetaYUp.sin;
-							float upperEyesYDownLimit = _internalValues.bodyIK.upperEyesLimitThetaYDown.sin;
+							float upperEyesXLimit = _internalValues.bodyIK.upperEyesLimitYaw.sin;
+							float upperEyesYUpLimit = _internalValues.bodyIK.upperEyesLimitPitchUp.sin;
+							float upperEyesYDownLimit = _internalValues.bodyIK.upperEyesLimitPitchDown.sin;
 
 							SAFBIKMatMultVecInv( out eyeDir, ref toBasis, ref eyeDir ); // to Local
 
-							if( eyeDir.y >= 0.0f ) {
-								eyeDir.y *= _settings.bodyIK.upperEyesRateYUp;
+							eyeDir.x *= _settings.bodyIK.upperEyesYawRate;
+                            if( eyeDir.y >= 0.0f ) {
+								eyeDir.y *= _settings.bodyIK.upperEyesPitchUpRate;
 							} else {
-								eyeDir.y *= _settings.bodyIK.upperEyesRateYDown;
+								eyeDir.y *= _settings.bodyIK.upperEyesPitchDownRate;
 							}
 
 							SAFBIKVecNormalize( ref eyeDir );
 
-							if( eyeDir.z < 0.0f ) {
-								float offset = Mathf.Clamp( _settings.bodyIK.upperEyesBackOffsetZ, 0.0f, 0.99f );
-								if( offset > IKEpsilon ) {
-									if( eyeDir.z > -offset ) {
-										eyeDir.z = 0.0f;
-									} else {
-										eyeDir.z = (eyeDir.z + offset) / (1.0f - offset);
-									}
-									SAFBIKVecNormalize( ref eyeDir );
-								}
+							if( _ComputeEyesRange( ref eyeDir, _internalValues.bodyIK.upperEyesRangeTheta.cos ) ) {
+								_LimitXY( ref eyeDir, upperEyesXLimit, upperEyesXLimit, upperEyesYDownLimit, upperEyesYUpLimit );
 							}
-
-							_LimitXY( ref eyeDir, upperEyesXLimit, upperEyesXLimit, upperEyesYDownLimit, upperEyesYUpLimit );
 
 							SAFBIKMatMultVec( out eyeDir, ref toBasis, ref eyeDir ); // to Global
 

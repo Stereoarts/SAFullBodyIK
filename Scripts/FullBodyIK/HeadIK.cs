@@ -25,11 +25,6 @@ namespace SA
 			Vector3 _headBoneLossyScale = Vector3.one;
 			bool _isHeadBoneLossyScaleFuzzyIdentity = true;
 
-			float _eyeInnerLimit = Mathf.Sin( 30.0f * Mathf.Deg2Rad );
-			float _eyeOuterLimit = Mathf.Sin( 50.0f * Mathf.Deg2Rad );
-			float _eyeUpperLimit = Mathf.Sin( 20.0f * Mathf.Deg2Rad );
-			float _eyeLowerLimit = Mathf.Sin( 30.0f * Mathf.Deg2Rad );
-
 			Quaternion _headEffectorToWorldRotation = Quaternion.identity;
 			Quaternion _headToLeftEyeRotation = Quaternion.identity;
 			Quaternion _headToRightEyeRotation = Quaternion.identity;
@@ -120,6 +115,8 @@ namespace SA
 						} else {
 							_headBone.worldRotation = toRotation;
 						}
+
+						_HeadRotationLimit();
 					} else {
 						if( _internalValues.resetTransforms ) {
 							_headBone.worldRotation = parentBaseRotation * _headBone._baseToWorldRotation;
@@ -139,6 +136,44 @@ namespace SA
 
 				_Solve();
 				return true;
+			}
+
+			void _HeadRotationLimit()
+			{
+				// Rotation Limit.
+				Quaternion headRotation = _headBone.worldRotation * _headBone._worldToBaseRotation;
+				Quaternion neckRotation = _neckBone.worldRotation * _neckBone._worldToBaseRotation;
+				Quaternion localRotation = Inverse( neckRotation ) * headRotation;
+				Matrix3x3 localBasis;
+				SAFBIKMatSetRot( out localBasis, ref localRotation );
+
+				float headLimitX = SAFBIKSin( 10.0f * Mathf.Deg2Rad );
+				float headLimitZPlus = SAFBIKSin( 5.0f * Mathf.Deg2Rad );
+				float headLimitZMinus = SAFBIKSin( 5.0f * Mathf.Deg2Rad );
+
+				Vector3 localDirY = localBasis.column1;
+				Vector3 localDirZ = localBasis.column2;
+
+				bool isLimited = false;
+				isLimited |= _LimitXZ_Square( ref localDirY,
+					_internalValues.headIK.headLimitRollTheta.sin,
+					_internalValues.headIK.headLimitRollTheta.sin,
+					_internalValues.headIK.headLimitPitchUpTheta.sin,
+                    _internalValues.headIK.headLimitPitchDownTheta.sin );
+				isLimited |= _LimitXY_Square( ref localDirZ,
+					_internalValues.headIK.headLimitYawTheta.sin,
+					_internalValues.headIK.headLimitYawTheta.sin,
+					_internalValues.headIK.headLimitPitchDownTheta.sin,
+					_internalValues.headIK.headLimitPitchUpTheta.sin );
+
+				if( isLimited ) {
+					if( SAFBIKComputeBasisFromYZLockZ( out localBasis, ref localDirY, ref localDirZ ) ) {
+						SAFBIKMatGetRot( out localRotation, ref localBasis );
+						headRotation = neckRotation * localRotation;
+						headRotation = Normalize( headRotation * _headBone._baseToWorldRotation );
+						_headBone.worldRotation = headRotation;
+					}
+				}
 			}
 
 			void _Solve()
@@ -178,11 +213,11 @@ namespace SA
 						Vector3 localDir;
 						SAFBIKMatMultVecInv( out localDir, ref neckBoneBasis, ref yDir );
 
-						float neckLimitX = SAFBIKSin( 5.0f * Mathf.Deg2Rad );
-						float neckLimitZPlus = SAFBIKSin( 20.0f * Mathf.Deg2Rad );
-						float neckLimitZMinus = SAFBIKSin( 5.0f * Mathf.Deg2Rad );
-
-						if( _LimitXZ_Square( ref localDir, neckLimitX, neckLimitX, neckLimitZMinus, neckLimitZPlus ) ) {
+						if( _LimitXZ_Square( ref localDir,
+							_internalValues.headIK.neckLimitRollTheta.sin,
+							_internalValues.headIK.neckLimitRollTheta.sin,
+							_internalValues.headIK.neckLimitPitchDownTheta.sin,
+							_internalValues.headIK.neckLimitPitchUpTheta.sin ) ) {
 							SAFBIKMatMultVec( out yDir, ref neckBoneBasis, ref localDir );
 						}
 
@@ -234,6 +269,8 @@ namespace SA
 						}
 					}
 
+					_HeadRotationLimit();
+
 					if( _internalValues.resetTransforms ) {
 						if( _settings.modelTemplate == ModelTemplate.UnityChan ) {
 							_ResetEyesUnityChan();
@@ -254,43 +291,24 @@ namespace SA
 
 					Matrix3x3 neckBaseBasis = parentBaseBasis;
 
-					bool _isSolveNeck = true;
-					bool _isSolveHead = true;
-					float _neckYRate = 0.75f;
-
-					_internalValues.UpdateDebugValue( "_isSolveNeck", ref _isSolveNeck );
-					_internalValues.UpdateDebugValue( "_isSolveHead", ref _isSolveHead );
-					_internalValues.UpdateDebugValue( "_neckYRate", ref _neckYRate );
-
-#if true
-					if( _isSolveNeck ) {
+					{
 						Vector3 localDir;
 						SAFBIKMatMultVecInv( out localDir, ref parentBaseBasis, ref eyesDir );
 
-						//_debugData.AddPoint( eyesPosition, Color.red );
-						//_internalValues.AddDebugPoint( eyesPosition + eyesDir * 0.25f, Color.red );
-
-						float _neckYUpLimitAngle = 15.0f;
-						float _neckYDownLimitAngle = 30.0f;
-						float _neckLerpRate = 0.5f;
-
-						_internalValues.UpdateDebugValue( "_neckYUpLimitAngle", ref _neckYUpLimitAngle );
-						_internalValues.UpdateDebugValue( "_neckYDownLimitAngle", ref _neckYDownLimitAngle );
-
-						_neckYUpLimitAngle *= Mathf.Deg2Rad;
-						_neckYDownLimitAngle *= Mathf.Deg2Rad;
-
-						localDir.y *= _neckYRate;
+						localDir.y *= _settings.headIK.eyesToNeckPitchRate;
 						SAFBIKVecNormalize( ref localDir );
 
-						localDir.y = Mathf.Clamp( localDir.y, -Mathf.Sin( _neckYDownLimitAngle ), Mathf.Sin( _neckYUpLimitAngle ) );
-						localDir.x = 0.0f;
-						localDir.z = SAFBIKSqrt( 1.0f - localDir.y * localDir.y );
+						if( _ComputeEyesRange( ref localDir, _internalValues.headIK.eyesRangeTheta.cos ) ) {
+							if( localDir.y < -_internalValues.headIK.neckLimitPitchDownTheta.sin ) {
+								localDir.y = -_internalValues.headIK.neckLimitPitchDownTheta.sin;
+							} else if( localDir.y > _internalValues.headIK.neckLimitPitchUpTheta.sin ) {
+								localDir.y = _internalValues.headIK.neckLimitPitchUpTheta.sin;
+							}
+							localDir.x = 0.0f;
+							localDir.z = SAFBIKSqrt( 1.0f - localDir.y * localDir.y );
+						}
 
 						SAFBIKMatMultVec( out eyesDir, ref parentBaseBasis, ref localDir );
-
-						eyesDir = Vector3.Lerp( parentBaseBasis.column2, eyesDir, _neckLerpRate );
-						SAFBIKVecNormalize( ref eyesDir );
 
 						{
 							Vector3 xDir = parentBaseBasis.column0;
@@ -298,7 +316,7 @@ namespace SA
 							Vector3 zDir = eyesDir;
 
 							if( !SAFBIKComputeBasisLockZ( out neckBaseBasis, ref xDir, ref yDir, ref zDir ) ) {
-								neckBaseBasis = parentBaseBasis;
+								neckBaseBasis = parentBaseBasis; // Failsafe.
                             }
 						}
 
@@ -312,7 +330,7 @@ namespace SA
 							_neckBone.worldRotation = worldRotation;
 						}
                     }
-#endif
+
 					Matrix3x3 neckBasis;
 					SAFBIKMatMult( out neckBasis, ref neckBaseBasis, ref _internalValues.defaultRootBasisInv );
 
@@ -324,54 +342,25 @@ namespace SA
 
 					Matrix3x3 headBaseBasis = neckBaseBasis;
 
-					if( _isSolveHead ) {
+					{
 						Vector3 localDir;
 						SAFBIKMatMultVecInv( out localDir, ref neckBaseBasis, ref eyesDir );
 
-						float _headXLimitAngle = 80.0f;
-						float _headYUpLimitAngle = 15.0f;
-						float _headYDownLimitAngle = 15.0f;
-						float _headXRate = 0.8f;
-						float _headYRate = 0.5f;
-						float _headZOffset = 0.5f; // Lock when behind looking.
-
-						_internalValues.UpdateDebugValue( "_headXLimitAngle", ref _headXLimitAngle );
-						_internalValues.UpdateDebugValue( "_headYUpLimitAngle", ref _headYUpLimitAngle );
-						_internalValues.UpdateDebugValue( "_headYDownLimitAngle", ref _headYDownLimitAngle );
-						_internalValues.UpdateDebugValue( "_headXRate", ref _headXRate );
-						_internalValues.UpdateDebugValue( "_headYRate", ref _headYRate );
-						_internalValues.UpdateDebugValue( "_headXOffset", ref _headZOffset );
-
-						_headXLimitAngle *= Mathf.Deg2Rad;
-						_headYUpLimitAngle *= Mathf.Deg2Rad;
-						_headYDownLimitAngle *= Mathf.Deg2Rad;
-
-						localDir.x *= _headXRate;
-						localDir.y *= _headYRate;
+						localDir.x *= _settings.headIK.eyesToHeadYawRate;
+						localDir.y *= _settings.headIK.eyesToHeadPitchRate;
 
 						SAFBIKVecNormalize( ref localDir );
 
-						if( localDir.z < 0.0f ) {
-							float offset = Mathf.Clamp( _headZOffset, 0.0f, 0.99f );
-							if( offset > IKEpsilon ) {
-								if( localDir.z > -offset ) {
-									localDir.z = 0.0f;
-								} else {
-									localDir.z = (localDir.z + offset) / (1.0f - offset);
-								}
-								SAFBIKVecNormalize( ref localDir );
-							}
+						if( _ComputeEyesRange( ref localDir, _internalValues.headIK.eyesRangeTheta.cos ) ) {
+							// Note: Not use _LimitXY() for Stability
+							_LimitXY_Square( ref localDir,
+								_internalValues.headIK.headLimitYawTheta.sin,
+								_internalValues.headIK.headLimitYawTheta.sin,
+								_internalValues.headIK.headLimitPitchDownTheta.sin,
+								_internalValues.headIK.headLimitPitchUpTheta.sin );
 						}
-
-						_LimitXY_Square( ref localDir,
-							Mathf.Sin( _headXLimitAngle ),
-							Mathf.Sin( _headXLimitAngle ),
-							Mathf.Sin( _headYDownLimitAngle ),
-							Mathf.Sin( _headYUpLimitAngle ) );
-
+						
 						SAFBIKMatMultVec( out eyesDir, ref neckBaseBasis, ref localDir );
-
-						SAFBIKVecNormalize( ref eyesDir );
 
 						{
 							Vector3 xDir = neckBaseBasis.column0;
