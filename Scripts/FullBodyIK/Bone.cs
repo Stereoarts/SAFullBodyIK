@@ -1,6 +1,6 @@
 ﻿// Copyright (c) 2016 Nora
 // Released under the MIT license
-// http://opensource.org/licenses/mit-license.phpusing
+// http://opensource.org/licenses/mit-license.php
 
 #if SAFULLBODYIK_DEBUG
 //#define _FORCE_NO_LOCAL_IDENTITY
@@ -263,7 +263,7 @@ namespace SA
 				}
 
 				if( _boneType == BoneType.Eye ) {
-					if( fullBodyIK.settings.modelTemplate == ModelTemplate.UnityChan ) {
+					if( fullBodyIK._IsHiddenCustomEyes() ) {
 						_isWritebackWorldPosition = true;
 					}
 				}

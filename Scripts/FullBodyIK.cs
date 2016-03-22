@@ -1,6 +1,6 @@
 ﻿// Copyright (c) 2016 Nora
 // Released under the MIT license
-// http://opensource.org/licenses/mit-license.phpusing
+// http://opensource.org/licenses/mit-license.php
 
 #if SAFULLBODYIK_DEBUG
 #define SAFULLBODYIK_DEBUG_CONSTRUCT_TIME
@@ -149,8 +149,6 @@ namespace SA
 			public bool rollEnabled = false;
 
 			public bool createEffectorTransform = true;
-
-			public ModelTemplate modelTemplate = ModelTemplate.Standard;
 
 			[System.Serializable]
 			public class BodyIK
@@ -718,7 +716,7 @@ namespace SA
 		[SerializeField]
 		bool _isPrefixedAtLeastOnce;
 
-		public void Initialize( Transform rootTransorm_ )
+		public void Awake( Transform rootTransorm_ )
 		{
 			if( rootTransform != rootTransorm_ ) {
 				rootTransform = rootTransorm_;
@@ -744,13 +742,15 @@ namespace SA
 
 		public void Destroy()
 		{
+#if UNITY_EDITOR
 			if( _effectors != null ) {
 				for( int i = 0; i < _effectors.Length; ++i ) {
-					if( _effectors[i].transform != null ) {
+					if( _effectors[i] != null && _effectors[i].transform != null ) {
 						GameObject.DestroyImmediate( _effectors[i].transform.gameObject );
 					}
                 }
 			}
+#endif
 		}
 
 		static void _SetBoneTransform( ref Bone bone, Transform transform )
@@ -858,6 +858,8 @@ namespace SA
 			SafeNew( ref rightArmEffectors );
 			SafeNew( ref leftLegEffectors );
 			SafeNew( ref rightLegEffectors );
+			SafeNew( ref leftHandFingersEffectors );
+			SafeNew( ref rightHandFingersEffectors );
 
 			SafeNew( ref settings );
 			SafeNew( ref editorSettings );
@@ -947,22 +949,6 @@ namespace SA
 			_Prefix( ref rightHandFingersEffectors.middle, EffectorLocation.RightHandMiddle, rightArmEffectors.wrist, rightHandFingersBones.middle );
 			_Prefix( ref rightHandFingersEffectors.ring, EffectorLocation.RightHandRing, rightArmEffectors.wrist, rightHandFingersBones.ring );
 			_Prefix( ref rightHandFingersEffectors.little, EffectorLocation.RightHandLittle, rightArmEffectors.wrist, rightHandFingersBones.little );
-
-			// Hidden function.
-			Assert( rootTransform != null );
-			if( rootTransform != null ) {
-				if( settings.modelTemplate == ModelTemplate.Standard ) {
-					var animator = rootTransform.GetComponent<Animator>();
-					if( animator != null ) {
-						var avatar = animator.avatar;
-						if( avatar != null ) {
-							if( avatar.name.Contains( "unitychan" ) ) {
-								settings.modelTemplate = ModelTemplate.UnityChan;
-							}
-						}
-					}
-				}
-			}
 
 			if( !_isPrefixedAtLeastOnce ) {
 				_isPrefixedAtLeastOnce = true;
@@ -1221,12 +1207,12 @@ namespace SA
 
 		// - Wakeup for solvers.
 		// - Require to setup each transforms.
-		public void Prepare()
+		public bool Prepare()
 		{
 			_Prefix();
 
 			if( _isPrepared ) {
-				return;
+				return false;
 			}
 
 			_isPrepared = true;
@@ -1298,6 +1284,8 @@ namespace SA
 					}
 				}
 			}
+
+			return true;
         }
 
 		bool _isAnimatorCheckedAtLeastOnce = false;
@@ -1559,7 +1547,7 @@ namespace SA
 					}
 				}
 				if( _headIK != null ) {
-					isHeadSolved = _headIK.Solve();
+					isHeadSolved = _headIK.Solve( this );
 					isSolved |= isHeadSolved;
                 }
 
@@ -1682,7 +1670,7 @@ namespace SA
 			}
 
 			if( bone.boneType == BoneType.Eye ) {
-				if( settings.modelTemplate == ModelTemplate.UnityChan ) {
+				if( _IsHiddenCustomEyes() ) {
 					return;
 				}
 			}
@@ -1856,6 +1844,27 @@ namespace SA
 			Assert( _effectors != null );
 			bool createEffectorTransform = this.settings.createEffectorTransform;
 			Effector.Prefix( _effectors, ref effector, effectorLocation, createEffectorTransform, null, parentEffector, bone, leftBone, rightBone );
+		}
+
+		//----------------------------------------------------------------------------------------------------------------------------
+
+		// Custom Solver.
+		public virtual bool _IsHiddenCustomEyes()
+		{
+			return false;
+		}
+
+		public virtual bool _PrepareCustomEyes( ref Quaternion headToLeftEyeRotation, ref Quaternion headToRightEyeRotation )
+		{
+			return false;
+		}
+
+		public virtual void _ResetCustomEyes()
+		{
+		}
+
+		public virtual void _SolveCustomEyes( ref Matrix3x3 neckBasis, ref Matrix3x3 headBasis, ref Matrix3x3 headBaseBasis )
+		{
 		}
 	}
 }

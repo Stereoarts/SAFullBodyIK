@@ -1,6 +1,6 @@
 ﻿// Copyright (c) 2016 Nora
 // Released under the MIT license
-// http://opensource.org/licenses/mit-license.phpusing
+// http://opensource.org/licenses/mit-license.php
 
 #if SAFULLBODYIK_DEBUG
 //#define SAFULLBODYIK_DEBUG_CHECKEVAL
@@ -156,6 +156,23 @@ namespace SA
 			} else {
 				return true;
 			}
+		}
+
+		//----------------------------------------------------------------------------------------------------------------
+
+		public static string _GetAvatarName( Transform rootTransform )
+		{
+			if( rootTransform != null ) {
+				var animator = rootTransform.GetComponent<Animator>();
+				if( animator != null ) {
+					var avatar = animator.avatar;
+					if( avatar != null ) {
+						return avatar.name;
+					}
+				}
+			}
+
+			return null;
 		}
 
 		//----------------------------------------------------------------------------------------------------------------

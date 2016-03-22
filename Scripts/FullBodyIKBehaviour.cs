@@ -1,6 +1,6 @@
 ﻿// Copyright (c) 2016 Nora
 // Released under the MIT license
-// http://opensource.org/licenses/mit-license.phpusing
+// http://opensource.org/licenses/mit-license.php
 
 using UnityEngine;
 using System.Collections.Generic;
@@ -9,67 +9,21 @@ namespace SA
 {
 	[ExecuteInEditMode]
 	[DisallowMultipleComponent]
-	public class FullBodyIKBehaviour : MonoBehaviour
+	public class FullBodyIKBehaviour : FullBodyIKBehaviourBase
 	{
 		[SerializeField]
 		FullBodyIK _fullBodyIK;
 
-		public FullBodyIK fullBodyIK { get { return _fullBodyIK; } }
-
-		// Excecutable in Inspector.
-		public void Prefix()
+		public override FullBodyIK fullBodyIK
 		{
-			if( _fullBodyIK == null ) {
-				_fullBodyIK = new FullBodyIK();
-			}
+			get
+			{
+				if( _fullBodyIK == null ) {
+					_fullBodyIK = new FullBodyIK();
+				}
 
-			fullBodyIK.Prefix( this.transform );
-		}
-
-		void Awake()
-		{
-#if UNITY_EDITOR
-			if( !Application.isPlaying ) {
-				return;
-			}
-#endif
-			if( _fullBodyIK == null ) {
-				_fullBodyIK = new FullBodyIK();
-			}
-
-			_fullBodyIK.Initialize( this.transform );
-		}
-
-		void OnDestroy()
-		{
-#if UNITY_EDITOR
-			if( _fullBodyIK != null ) {
-				_fullBodyIK.Destroy();
-            }
-#endif
-		}
-
-		void LateUpdate()
-		{
-#if UNITY_EDITOR
-			if( !Application.isPlaying ) {
-				return;
-			}
-#endif
-
-			FullBodyIK.Assert( _fullBodyIK != null );
-			if( _fullBodyIK != null ) {
-				_fullBodyIK.Update();
+				return _fullBodyIK;
 			}
 		}
-
-#if UNITY_EDITOR
-		void OnDrawGizmos()
-		{
-			if( _fullBodyIK != null ) {
-				_fullBodyIK.DrawGizmos();
-            }
-		}
-#endif
 	}
 }

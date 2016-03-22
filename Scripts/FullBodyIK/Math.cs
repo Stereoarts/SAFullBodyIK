@@ -1,6 +1,6 @@
 ﻿// Copyright (c) 2016 Nora
 // Released under the MIT license
-// http://opensource.org/licenses/mit-license.phpusing
+// http://opensource.org/licenses/mit-license.php
 
 #if SAFULLBODYIK_DEBUG // Currentry Debug Only
 #if UNITY_EDITOR_WIN || UNITY_STANDALONE_WIN

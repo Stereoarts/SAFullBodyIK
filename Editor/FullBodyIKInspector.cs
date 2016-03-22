@@ -1,6 +1,6 @@
 ﻿// Copyright (c) 2016 Nora
 // Released under the MIT license
-// http://opensource.org/licenses/mit-license.phpusing
+// http://opensource.org/licenses/mit-license.php
 using UnityEngine;
 using UnityEditor;
 using System.Collections.Generic;
@@ -8,8 +8,7 @@ using EditorUtil = SA.FullBodyIKEditorUtility;
 
 namespace SA
 {
-	[CustomEditor( typeof( SA.FullBodyIKBehaviour ) )]
-	public class FullBodyIKInspector : Editor
+	public class FullBodyIKInspectorBase : Editor
 	{
 		bool _initializedGUIStyle;
 		GUIStyle _guiStyle_header;
@@ -76,7 +75,7 @@ namespace SA
 		void _BoneField( string boneName, ref FullBodyIK.Bone bone, bool isOptional )
 		{
 			FullBodyIK.SafeNew( ref bone );
-			var fbik = this.target as FullBodyIKBehaviour;
+			var fbik = this.target as FullBodyIKBehaviourBase;
 			EditorGUILayout.BeginHorizontal();
 			if( bone.transform == null ) {
 				if( isOptional ) {
@@ -112,7 +111,7 @@ namespace SA
 
 		void _EffectorField( string effectorName, ref FullBodyIK.Effector effector )
 		{
-			var fbik = this.target as FullBodyIKBehaviour;
+			var fbik = this.target as FullBodyIKBehaviourBase;
 			var editorSettings = fbik.fullBodyIK.editorSettings;
 
 			if( effector == null ) {
@@ -130,7 +129,7 @@ namespace SA
 
 				EditorGUILayout.LabelField( "Pos", GUILayout.Width( labelSpace ) );
 				EditorUtil.GUI.ToggleLegacy( fbik, "", ref effector.positionEnabled );
-				EditorUtil.GUI.PushEnabled( effector.positionEnabled  );
+				EditorUtil.GUI.PushEnabled( effector.positionEnabled );
 				EditorUtil.GUI.HorizonalSlider( fbik, ref effector.positionWeight, 0.0f, 1.0f, GUILayout.ExpandWidth( false ), GUILayout.Width( 30.0f ) );
 				EditorUtil.GUI.PushEnabled( effector.pullContained );
 				EditorGUILayout.LabelField( "Pull", GUILayout.Width( labelSpace ) );
@@ -138,10 +137,10 @@ namespace SA
 				EditorUtil.GUI.PopEnabled();
 				EditorUtil.GUI.PopEnabled();
 
-				EditorUtil.GUI.PushEnabled( effector.rotationContained  );
+				EditorUtil.GUI.PushEnabled( effector.rotationContained );
 				EditorGUILayout.LabelField( "Rot", GUILayout.Width( labelSpace ) );
 				EditorUtil.GUI.ToggleLegacy( fbik, "", ref effector.rotationEnabled );
-				EditorUtil.GUI.PushEnabled( effector.rotationEnabled  );
+				EditorUtil.GUI.PushEnabled( effector.rotationEnabled );
 				EditorUtil.GUI.HorizonalSlider( fbik, ref effector.rotationWeight, 0.0f, 1.0f, GUILayout.ExpandWidth( false ), GUILayout.Width( 30.0f ) );
 				EditorUtil.GUI.PopEnabled();
 				EditorUtil.GUI.PopEnabled();
@@ -149,17 +148,12 @@ namespace SA
 			GUILayout.EndHorizontal();
 		}
 
-		bool _isPrefixed;
-
 		public override void OnInspectorGUI()
 		{
 			_Initialize();
 
-			var fbik = this.target as FullBodyIKBehaviour;
-			if( !_isPrefixed ) {
-				_isPrefixed = true;
-                fbik.Prefix();
-			}
+			var fbik = this.target as FullBodyIKBehaviourBase;
+			fbik.Prefix();
 
 			var editorSettings = fbik.fullBodyIK.editorSettings;
 
@@ -173,7 +167,9 @@ namespace SA
 			EditorUtil.GUI.Toolbar( fbik, ref editorSettings.toolbarSelected, toolbarContents );
 			GUILayout.FlexibleSpace();
 			GUILayout.EndHorizontal();
-			
+
+
+
 			switch( editorSettings.toolbarSelected ) {
 			case 0:
 				_OnInspectorGUI_Basic();
@@ -189,7 +185,7 @@ namespace SA
 
 		void _OnInspectorGUI_Basic()
 		{
-			var fbik = this.target as FullBodyIKBehaviour;
+			var fbik = this.target as FullBodyIKBehaviourBase;
 			var settings = fbik.fullBodyIK.settings;
 			var editorSettings = fbik.fullBodyIK.editorSettings;
 			var internalValues = fbik.fullBodyIK.internalValues;
@@ -205,8 +201,6 @@ namespace SA
 				EditorUtil.GUI.Field( "Automatic Configure Spine Enabled", ref settings.automaticConfigureSpineEnabled );
 				EditorUtil.GUI.Field( "Automatic Configure Roll Enabled", ref settings.automaticConfigureRollEnabled );
 				EditorUtil.GUI.Field( "Roll Enabled", ref settings.rollEnabled );
-
-				settings.modelTemplate = (FullBodyIK.ModelTemplate)EditorGUILayout.EnumPopup( "Model Template", settings.modelTemplate );
 
 				_Header( "BodyIK" );
 
@@ -232,7 +226,7 @@ namespace SA
 				EditorUtil.GUI.Slider01( "Spine DirX Leg To Arm To Rate", ref settings.bodyIK.spineDirXLegToArmToRate );
 				EditorUtil.GUI.Slider01( "Spine DirY Lerp Rate", ref settings.bodyIK.spineDirYLerpRate );
 
-                EditorUtil.GUI.Slider01( "Upper Body Movingfix Rate", ref settings.bodyIK.upperBodyMovingfixRate );
+				EditorUtil.GUI.Slider01( "Upper Body Movingfix Rate", ref settings.bodyIK.upperBodyMovingfixRate );
 				EditorUtil.GUI.Slider01( "Upper Head Movingfix Rate", ref settings.bodyIK.upperHeadMovingfixRate );
 				EditorUtil.GUI.Slider01( "Upper CenterLeg Translate Rate", ref settings.bodyIK.upperCenterLegTranslateRate );
 				EditorUtil.GUI.Slider01( "Upper Spine Translate Rate", ref settings.bodyIK.upperSpineTranslateRate );
@@ -374,7 +368,7 @@ namespace SA
 
 		void _OnInspectorGUI_Bones()
 		{
-			var fbik = this.target as FullBodyIKBehaviour;
+			var fbik = this.target as FullBodyIKBehaviourBase;
 			var bodyBones = fbik.fullBodyIK.bodyBones;
 			var headBones = fbik.fullBodyIK.headBones;
 			var leftLegBones = fbik.fullBodyIK.leftLegBones;
@@ -480,10 +474,10 @@ namespace SA
 
 			EditorGUILayout.EndScrollView();
 		}
-		
+
 		void _OnInspectorGUI_Effectors()
 		{
-			var fbik = this.target as FullBodyIKBehaviour;
+			var fbik = this.target as FullBodyIKBehaviourBase;
 			var editorSettings = fbik.fullBodyIK.editorSettings;
 			var bodyEffectors = fbik.fullBodyIK.bodyEffectors;
 			var headEffectors = fbik.fullBodyIK.headEffectors;
@@ -517,7 +511,7 @@ namespace SA
 			EditorGUILayout.Separator();
 
 			_scrollViewPos_Effectors = EditorGUILayout.BeginScrollView( _scrollViewPos_Effectors );
-			
+
 			EditorGUILayout.Separator();
 			_Header( "Body" );
 			_EffectorField( "Hips", ref bodyEffectors.hips );
@@ -561,21 +555,26 @@ namespace SA
 
 			EditorGUILayout.EndScrollView();
 		}
-		
+
 		void _ConfigureHumanoidBones()
 		{
 		}
-		
+
 		void _ResetBones()
 		{
 		}
-		
+
 		void _PrepareEffectorTransforms()
 		{
 		}
-		
+
 		void _ResetEffectorTransforms()
 		{
 		}
+	}
+
+	[CustomEditor( typeof( SA.FullBodyIKBehaviour ) )]
+	public class FullBodyIKInspector : FullBodyIKInspectorBase
+	{
 	}
 }

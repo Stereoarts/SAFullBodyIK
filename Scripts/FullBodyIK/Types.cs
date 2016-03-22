@@ -1,6 +1,6 @@
 ﻿// Copyright (c) 2016 Nora
 // Released under the MIT license
-// http://opensource.org/licenses/mit-license.phpusing
+// http://opensource.org/licenses/mit-license.php
 
 using UnityEngine;
 
@@ -13,13 +13,6 @@ namespace SA
 		{
 			Normal,
 			LegacyMove,
-		}
-
-		// for Specially models only.
-		public enum ModelTemplate
-		{
-			Standard,
-			UnityChan,
 		}
 
 		public enum Side

@@ -1,6 +1,6 @@
 ﻿// Copyright (c) 2016 Nora
 // Released under the MIT license
-// http://opensource.org/licenses/mit-license.phpusing
+// http://opensource.org/licenses/mit-license.php
 
 #if SAFULLBODYIK_DEBUG
 //#define _FORCE_CANCEL_FEEDBACK_WORLDTRANSFORM
@@ -97,7 +97,7 @@ namespace SA
 			bool _isWrittenWorldPosition = false;
 			bool _isWrittenWorldRotation = false;
 
-			bool _isLegacyEyes = false;
+			bool _isHiddenEyes = false;
 
 			int _transformIsAlive = -1;
 
@@ -322,8 +322,8 @@ namespace SA
 					}
 				} else if( _effectorType == EffectorType.Eyes ) {
 					Assert( _bone != null );
-					_isLegacyEyes = ( fullBodyIK.settings.modelTemplate == ModelTemplate.UnityChan);
-					if( !_isLegacyEyes && _bone != null && _bone.transformIsAlive &&
+					_isHiddenEyes = fullBodyIK._IsHiddenCustomEyes();
+					if( !_isHiddenEyes && _bone != null && _bone.transformIsAlive &&
 						_leftBone != null && _leftBone.transformIsAlive &&
 						_rightBone != null && _rightBone.transformIsAlive ) {
 						// _bone ... Head / _leftBone ... LeftEye / _rightBone ... RightEye
@@ -390,7 +390,7 @@ namespace SA
 			public Vector3 bone_worldPosition {
 				get {
 					if( _effectorType == EffectorType.Eyes ) {
-						if( !_isLegacyEyes && _bone != null && _bone.transformIsAlive &&
+						if( !_isHiddenEyes && _bone != null && _bone.transformIsAlive &&
 							_leftBone != null && _leftBone.transformIsAlive &&
 							_rightBone != null && _rightBone.transformIsAlive ) {
 							// _bone ... Head / _leftBone ... LeftEye / _rightBone ... RightEye
