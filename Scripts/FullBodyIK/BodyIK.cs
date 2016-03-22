@@ -844,7 +844,7 @@ namespace SA
 							Vector3 targetDirY = centerArmPosY2 - prevPos;
 							Vector3 targetDirY2 = centerArmPosY2 - origPos;
 
-							if( !SAFBIKVecNormalize4( ref currentDirX, ref currentDirY, ref targetDirY, ref targetDirY2 ) ) {
+							if( !SAFBIKVecNormalize3( ref currentDirX, ref currentDirY, ref targetDirY, ref targetDirY2 ) ) {
 								continue; // Skip.
 							}
 
