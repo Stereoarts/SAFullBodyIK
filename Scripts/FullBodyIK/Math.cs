@@ -784,7 +784,7 @@ namespace SA
 			return r0 && r1 && r2;
 		}
 
-		public static bool SAFBIKVecNormalize3( ref Vector3 v0, ref Vector3 v1, ref Vector3 v2, ref Vector3 v3 )
+		public static bool SAFBIKVecNormalize4( ref Vector3 v0, ref Vector3 v1, ref Vector3 v2, ref Vector3 v3 )
 		{
 			bool r0 = SAFBIKVecNormalize( ref v0 );
 			bool r1 = SAFBIKVecNormalize( ref v1 );
