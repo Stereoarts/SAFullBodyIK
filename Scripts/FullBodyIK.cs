@@ -145,8 +145,8 @@ namespace SA
 			public bool automaticPrepareHumanoid = true;
 			public bool automaticConfigureSpineEnabled = false;
 
-			public bool automaticConfigureRollEnabled = false;
-			public bool rollEnabled = false;
+			public bool automaticConfigureRollBonesEnabled = false;
+			public bool rollBonesEnabled = false;
 
 			public bool createEffectorTransform = true;
 
@@ -173,7 +173,7 @@ namespace SA
 				public float upperBodyMovingfixRate = 1.0f;
 				public float upperHeadMovingfixRate = 0.8f;
 				public float upperCenterLegTranslateRate = 0.5f;
-				public float upperSpineTranslateRate = 0.6f;
+				public float upperSpineTranslateRate = 0.65f;
 				public float upperCenterLegRotateRate = 0.6f;
 				public float upperSpineRotateRate = 0.9f;
 				public float upperPostTranslateRate = 1.0f;
@@ -193,7 +193,7 @@ namespace SA
 				public bool spineLimitEnabled = true;
 				public bool spineAccurateLimitEnabled = false;
 				public float spineLimitAngleX = 40.0f;
-				public float spineLimitAngleY = 20.0f;
+				public float spineLimitAngleY = 25.0f;
 
 				public float upperContinuousPreTranslateRate = 0.2f;
 				public float upperContinuousPreTranslateStableRate = 0.65f;
@@ -211,7 +211,7 @@ namespace SA
 				public float upperEyesLimitYaw = 80.0f;
 				public float upperEyesLimitPitchUp = 10.0f;
 				public float upperEyesLimitPitchDown = 45.0f;
-				public float upperEyesRangeAngle = 160.0f;
+				public float upperEyesTraceAngle = 160.0f;
 			}
 
 			[System.Serializable]
@@ -286,7 +286,14 @@ namespace SA
 				public float eyesToHeadYawRate = 0.8f;
 				public float eyesToHeadPitchRate = 0.5f;
 
-				public float eyesRangeAngle = 110.0f;
+				public float eyesTraceAngle = 110.0f;
+
+				public float eyesLimitYaw = 40.0f;
+				public float eyesLimitPitch = 12.0f;
+				public float eyesYawRate = 0.796f;
+				public float eyesPitchRate = 0.729f;
+				public float eyesYawOuterRate = 0.356f;
+				public float eyesYawInnerRate = 0.212f;
 			}
 
 			[System.Serializable]
@@ -412,7 +419,7 @@ namespace SA
 				public CachedDegreesToSin upperEyesLimitYaw = CachedDegreesToSin.zero;
 				public CachedDegreesToSin upperEyesLimitPitchUp = CachedDegreesToSin.zero;
 				public CachedDegreesToSin upperEyesLimitPitchDown = CachedDegreesToSin.zero;
-				public CachedDegreesToCos upperEyesRangeTheta = CachedDegreesToCos.zero;
+				public CachedDegreesToCos upperEyesTraceTheta = CachedDegreesToCos.zero;
 
 				public CachedDegreesToSin upperDirXLimitThetaY = CachedDegreesToSin.zero;
 
@@ -465,8 +472,8 @@ namespace SA
 					if( upperEyesLimitPitchDown._degrees != settingsBodyIK.upperEyesLimitPitchDown ) {
 						upperEyesLimitPitchDown._Reset( settingsBodyIK.upperEyesLimitPitchDown );
 					}
-					if( upperEyesRangeTheta._degrees != settingsBodyIK.upperEyesRangeAngle ) {
-						upperEyesRangeTheta._Reset( settingsBodyIK.upperEyesRangeAngle );
+					if( upperEyesTraceTheta._degrees != settingsBodyIK.upperEyesTraceAngle ) {
+						upperEyesTraceTheta._Reset( settingsBodyIK.upperEyesTraceAngle );
 					}
 
 					if( spineLimitAngleX._a != settingsBodyIK.spineLimitAngleX ) {
@@ -552,7 +559,10 @@ namespace SA
 				public CachedDegreesToSin headLimitPitchDownTheta = CachedDegreesToSin.zero;
 				public CachedDegreesToSin headLimitRollTheta = CachedDegreesToSin.zero;
 
-				public CachedDegreesToCos eyesRangeTheta = CachedDegreesToCos.zero;
+				public CachedDegreesToCos eyesTraceTheta = CachedDegreesToCos.zero;
+
+				public CachedDegreesToSin eyesLimitYawTheta = CachedDegreesToSin.zero;
+				public CachedDegreesToSin eyesLimitPitchTheta = CachedDegreesToSin.zero;
 
 				public void Update( Settings.HeadIK settingsHeadIK )
 				{
@@ -581,8 +591,15 @@ namespace SA
 						headLimitRollTheta._Reset( settingsHeadIK.headLimitRoll );
 					}
 					
-					if( eyesRangeTheta._degrees != settingsHeadIK.eyesRangeAngle ) {
-						eyesRangeTheta._Reset( settingsHeadIK.eyesRangeAngle );
+					if( eyesTraceTheta._degrees != settingsHeadIK.eyesTraceAngle ) {
+						eyesTraceTheta._Reset( settingsHeadIK.eyesTraceAngle );
+					}
+
+					if( eyesLimitYawTheta._degrees != settingsHeadIK.eyesLimitYaw ) {
+						eyesLimitYawTheta._Reset( settingsHeadIK.eyesLimitYaw );
+					}
+					if( eyesLimitPitchTheta._degrees != settingsHeadIK.eyesLimitPitch ) {
+						eyesLimitPitchTheta._Reset( settingsHeadIK.eyesLimitPitch );
 					}
 				}
 			}
@@ -1139,7 +1156,7 @@ namespace SA
 				}
 			}
 
-			if( settings.automaticConfigureRollEnabled ) {
+			if( settings.automaticConfigureRollBonesEnabled ) {
 				var tempBones = new List<Transform>();
 
 				for( int side = 0; side != 2; ++side ) {

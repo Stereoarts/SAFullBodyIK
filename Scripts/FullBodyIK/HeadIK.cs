@@ -17,7 +17,6 @@ namespace SA
 			Bone _leftEyeBone;
 			Bone _rightEyeBone;
 
-			Effector _neckEffector;
 			Effector _headEffector;
 			Effector _eyesEffector;
 
@@ -34,7 +33,6 @@ namespace SA
 				_headBone = _PrepareBone( fullBodyIK.headBones.head );
 				_leftEyeBone = _PrepareBone( fullBodyIK.headBones.leftEye );
 				_rightEyeBone = _PrepareBone( fullBodyIK.headBones.rightEye );
-				_neckEffector = fullBodyIK.headEffectors.neck;
 				_headEffector = fullBodyIK.headEffectors.head;
 				_eyesEffector = fullBodyIK.headEffectors.eyes;
             }
@@ -51,14 +49,14 @@ namespace SA
 
 					if( _headBone != null && _headBone.transformIsAlive ) {
 						if( _headEffector != null ) {
-							_headEffectorToWorldRotation = Inverse( _headEffector.defaultRotation ) * _headBone._defaultRotation;
+							SAFBIKQuatMultInv0( out _headEffectorToWorldRotation, ref _headEffector._defaultRotation, ref _headBone._defaultRotation );
 						}
 						if( _leftEyeBone != null && _leftEyeBone.transformIsAlive ) {
-							_headToLeftEyeRotation = Inverse( _headBone._defaultRotation ) * _leftEyeBone._defaultRotation;
-						}
+							SAFBIKQuatMultInv0( out _headToLeftEyeRotation, ref _headBone._defaultRotation, ref _leftEyeBone._defaultRotation );
+                        }
 						if( _rightEyeBone != null && _rightEyeBone.transformIsAlive ) {
-							_headToRightEyeRotation = Inverse( _headBone._defaultRotation ) * _rightEyeBone._defaultRotation;
-						}
+							SAFBIKQuatMultInv0( out _headToRightEyeRotation, ref _headBone._defaultRotation, ref _rightEyeBone._defaultRotation );
+                        }
 					}
 
 					_isEnabledCustomEyes = fullBodyIK._PrepareCustomEyes( ref _headToLeftEyeRotation, ref _headToRightEyeRotation );
@@ -80,20 +78,25 @@ namespace SA
 
 				if( headPositionWeight <= IKEpsilon && eyesPositionWeight <= IKEpsilon ) {
 					Quaternion parentWorldRotation = _neckBone.parentBone.worldRotation;
-					Quaternion parentBaseRotation = parentWorldRotation * _neckBone.parentBone._worldToBaseRotation;
+					Quaternion parentBaseRotation;
+					SAFBIKQuatMult( out parentBaseRotation, ref parentWorldRotation, ref _neckBone.parentBone._worldToBaseRotation );
 
 					if( _internalValues.resetTransforms ) {
-						_neckBone.worldRotation = parentBaseRotation * _neckBone._baseToWorldRotation;
+						Quaternion tempRotation;
+						SAFBIKQuatMult( out tempRotation, ref parentBaseRotation, ref _neckBone._baseToWorldRotation );
+						_neckBone.worldRotation = tempRotation;
 					}
 
 					float headRotationWeight = _headEffector.rotationEnabled ? _headEffector.rotationWeight : 0.0f;
 					if( headRotationWeight > IKEpsilon ) {
-						Quaternion toRotation = _headEffector.worldRotation * _headEffectorToWorldRotation;
+						Quaternion headEffectorWorldRotation = _headEffector.worldRotation;
+                        Quaternion toRotation;
+						SAFBIKQuatMult( out toRotation, ref headEffectorWorldRotation, ref _headEffectorToWorldRotation );
 						if( headRotationWeight < 1.0f - IKEpsilon ) {
 							Quaternion fromRotation;
 							if( _internalValues.resetTransforms ) {
-								fromRotation = parentBaseRotation * _headBone._baseToWorldRotation;
-							} else {
+								SAFBIKQuatMult( out fromRotation, ref parentBaseRotation, ref _headBone._baseToWorldRotation );
+                            } else {
 								fromRotation = _headBone.worldRotation; // This is able to use _headBone.worldRotation directly.
 							}
 							_headBone.worldRotation = Quaternion.Lerp( fromRotation, toRotation, headRotationWeight );
@@ -104,8 +107,10 @@ namespace SA
 						_HeadRotationLimit();
 					} else {
 						if( _internalValues.resetTransforms ) {
-							_headBone.worldRotation = parentBaseRotation * _headBone._baseToWorldRotation;
-						}
+							Quaternion tempRotation;
+							SAFBIKQuatMult( out tempRotation, ref parentBaseRotation, ref _headBone._baseToWorldRotation );
+							_headBone.worldRotation = tempRotation;
+                        }
 					}
 
 					if( _internalValues.resetTransforms ) {
@@ -126,15 +131,15 @@ namespace SA
 			void _HeadRotationLimit()
 			{
 				// Rotation Limit.
-				Quaternion headRotation = _headBone.worldRotation * _headBone._worldToBaseRotation;
-				Quaternion neckRotation = _neckBone.worldRotation * _neckBone._worldToBaseRotation;
-				Quaternion localRotation = Inverse( neckRotation ) * headRotation;
+				Quaternion tempRotation, headRotation, neckRotation, localRotation;
+				tempRotation = _headBone.worldRotation;
+                SAFBIKQuatMult( out headRotation, ref tempRotation, ref _headBone._worldToBaseRotation );
+				tempRotation = _neckBone.worldRotation;
+				SAFBIKQuatMult( out neckRotation, ref tempRotation, ref _neckBone._worldToBaseRotation );
+				SAFBIKQuatMultInv0( out localRotation, ref neckRotation, ref headRotation );
+
 				Matrix3x3 localBasis;
 				SAFBIKMatSetRot( out localBasis, ref localRotation );
-
-				float headLimitX = SAFBIKSin( 10.0f * Mathf.Deg2Rad );
-				float headLimitZPlus = SAFBIKSin( 5.0f * Mathf.Deg2Rad );
-				float headLimitZMinus = SAFBIKSin( 5.0f * Mathf.Deg2Rad );
 
 				Vector3 localDirY = localBasis.column1;
 				Vector3 localDirZ = localBasis.column2;
@@ -154,8 +159,7 @@ namespace SA
 				if( isLimited ) {
 					if( SAFBIKComputeBasisFromYZLockZ( out localBasis, ref localDirY, ref localDirZ ) ) {
 						SAFBIKMatGetRot( out localRotation, ref localBasis );
-						headRotation = neckRotation * localRotation;
-						headRotation = Normalize( headRotation * _headBone._baseToWorldRotation );
+						SAFBIKQuatMultNorm3( out headRotation, ref neckRotation, ref localRotation, ref _headBone._baseToWorldRotation );
 						_headBone.worldRotation = headRotation;
 					}
 				}
@@ -168,7 +172,8 @@ namespace SA
 				SAFBIKMatSetRotMultInv1( out parentBasis, ref parentWorldRotation, ref _neckBone.parentBone._defaultRotation );
 				Matrix3x3 parentBaseBasis;
 				SAFBIKMatMult( out parentBaseBasis, ref parentBasis, ref _internalValues.defaultRootBasis );
-				Quaternion parentBaseRotation = parentWorldRotation * _neckBone.parentBone._worldToBaseRotation;
+				Quaternion parentBaseRotation;
+				SAFBIKQuatMult( out parentBaseRotation, ref parentWorldRotation, ref _neckBone.parentBone._worldToBaseRotation );
 
 				float headPositionWeight = _headEffector.positionEnabled ? _headEffector.positionWeight : 0.0f;
 				float eyesPositionWeight = _eyesEffector.positionEnabled ? _eyesEffector.positionWeight : 0.0f;
@@ -214,7 +219,7 @@ namespace SA
 							if( headPositionWeight < 1.0f - IKEpsilon ) {
 								Quaternion fromRotation;
 								if( _internalValues.resetTransforms ) {
-									fromRotation = parentBaseRotation * _neckBone._baseToWorldRotation;
+									SAFBIKQuatMult( out fromRotation, ref parentBaseRotation, ref _neckBone._baseToWorldRotation );
 								} else {
 									fromRotation = neckBonePrevRotation; // This is able to use _headBone.worldRotation directly.
 								}
@@ -226,22 +231,26 @@ namespace SA
 						}
 					}
 				} else if( _internalValues.resetTransforms ) {
-					_neckBone.worldRotation = parentBaseRotation * _neckBone._baseToWorldRotation;
+					Quaternion tempRotation;
+					SAFBIKQuatMult( out tempRotation, ref parentBaseRotation, ref _neckBone._baseToWorldRotation );
+					_neckBone.worldRotation = tempRotation;
 				}
 
 				// for Head / Eyes
 				if( eyesPositionWeight <= IKEpsilon ) {
 					float headRotationWeight = _headEffector.rotationEnabled ? _headEffector.rotationWeight : 0.0f;
 					if( headRotationWeight > IKEpsilon ) {
-						Quaternion toRotation = _headEffector.worldRotation * _headEffectorToWorldRotation;
+						Quaternion headEffectorWorldRotation = _headEffector.worldRotation;
+						Quaternion toRotation;
+						SAFBIKQuatMult( out toRotation, ref headEffectorWorldRotation, ref _headEffectorToWorldRotation );
 						if( headRotationWeight < 1.0f - IKEpsilon ) {
 							Quaternion fromRotation;
+							Quaternion neckBoneWorldRotation = _neckBone.worldRotation;
 							if( _internalValues.resetTransforms ) {
-								Quaternion neckBaseRotation = _neckBone.worldRotation * _neckBone._worldToBaseRotation;
-								fromRotation = neckBaseRotation * _headBone._baseToWorldRotation;
+								SAFBIKQuatMult3( out fromRotation, ref neckBoneWorldRotation, ref _neckBone._worldToBaseRotation, ref _headBone._baseToWorldRotation );
 							} else {
 								// Not use _headBone.worldRotation.
-								fromRotation = Normalize( _neckBone.worldRotation * Inverse( neckBonePrevRotation ) * headBonePrevRotation );
+								SAFBIKQuatMultNorm3Inv1( out fromRotation, ref neckBoneWorldRotation, ref neckBonePrevRotation, ref headBonePrevRotation );
 							}
 							_headBone.worldRotation = Quaternion.Lerp( fromRotation, toRotation, headRotationWeight );
 						} else {
@@ -249,9 +258,11 @@ namespace SA
 						}
 					} else {
 						if( _internalValues.resetTransforms ) {
-							Quaternion neckBaseRotation = _neckBone.worldRotation * _neckBone._worldToBaseRotation;
-							_headBone.worldRotation = neckBaseRotation * _headBone._baseToWorldRotation;
-						}
+							Quaternion neckBoneWorldRotation = _neckBone.worldRotation;
+							Quaternion headBoneWorldRotation;
+							SAFBIKQuatMult3( out headBoneWorldRotation, ref neckBoneWorldRotation, ref _neckBone._worldToBaseRotation, ref _headBone._baseToWorldRotation );
+							_headBone.worldRotation = headBoneWorldRotation;
+                        }
 					}
 
 					_HeadRotationLimit();
@@ -283,7 +294,7 @@ namespace SA
 						localDir.y *= _settings.headIK.eyesToNeckPitchRate;
 						SAFBIKVecNormalize( ref localDir );
 
-						if( _ComputeEyesRange( ref localDir, _internalValues.headIK.eyesRangeTheta.cos ) ) {
+						if( _ComputeEyesRange( ref localDir, _internalValues.headIK.eyesTraceTheta.cos ) ) {
 							if( localDir.y < -_internalValues.headIK.neckLimitPitchDownTheta.sin ) {
 								localDir.y = -_internalValues.headIK.neckLimitPitchDownTheta.sin;
 							} else if( localDir.y > _internalValues.headIK.neckLimitPitchUpTheta.sin ) {
@@ -336,7 +347,7 @@ namespace SA
 
 						SAFBIKVecNormalize( ref localDir );
 
-						if( _ComputeEyesRange( ref localDir, _internalValues.headIK.eyesRangeTheta.cos ) ) {
+						if( _ComputeEyesRange( ref localDir, _internalValues.headIK.eyesTraceTheta.cos ) ) {
 							// Note: Not use _LimitXY() for Stability
 							_LimitXY_Square( ref localDir,
 								_internalValues.headIK.headLimitYawTheta.sin,
@@ -360,7 +371,9 @@ namespace SA
 						Quaternion worldRotation;
 						SAFBIKMatMultGetRot( out worldRotation, ref headBaseBasis, ref _headBone._baseToWorldBasis );
 						if( _eyesEffector.positionWeight < 1.0f - IKEpsilon ) {
-							Quaternion headFromWorldRotation = Normalize( _neckBone.worldRotation * Inverse( neckBonePrevRotation ) * headBonePrevRotation );
+							Quaternion neckBoneWorldRotation = _neckBone.worldRotation;
+							Quaternion headFromWorldRotation;
+							SAFBIKQuatMultNorm3Inv1( out headFromWorldRotation, ref neckBoneWorldRotation, ref neckBonePrevRotation, ref headBonePrevRotation );
 							Quaternion headWorldRotation = Quaternion.Lerp( headFromWorldRotation, worldRotation, _eyesEffector.positionWeight );
 							_headBone.worldRotation = headWorldRotation;
 							SAFBIKMatSetRotMult( out headBaseBasis, ref headWorldRotation, ref _headBone._worldToBaseRotation );
@@ -382,106 +395,101 @@ namespace SA
 
 			void _ResetEyes()
 			{
-				Quaternion headWorldRotation = _headBone.worldRotation;
+				if( _headBone != null && _headBone.transformIsAlive ) {
+					Quaternion headWorldRotation = _headBone.worldRotation;
 
-				if( _leftEyeBone != null && _leftEyeBone.transformIsAlive ) {
-					_leftEyeBone.worldRotation = headWorldRotation * _headToLeftEyeRotation;
-				}
-				if( _rightEyeBone != null && _rightEyeBone.transformIsAlive ) {
-					_rightEyeBone.worldRotation = headWorldRotation * _headToRightEyeRotation;
+					Quaternion worldRotation;
+					if( _leftEyeBone != null && _leftEyeBone.transformIsAlive ) {
+						SAFBIKQuatMultNorm( out worldRotation, ref headWorldRotation, ref _headToLeftEyeRotation );
+						_leftEyeBone.worldRotation = worldRotation;
+					}
+					if( _rightEyeBone != null && _rightEyeBone.transformIsAlive ) {
+						SAFBIKQuatMultNorm( out worldRotation, ref headWorldRotation, ref _headToRightEyeRotation );
+						_rightEyeBone.worldRotation = worldRotation;
+					}
 				}
 			}
 
 			void _SolveEyes( ref Matrix3x3 neckBasis, ref Matrix3x3 headBasis, ref Matrix3x3 headBaseBasis,
 				ref Quaternion headPrevRotation, ref Quaternion leftEyePrevRotation, ref Quaternion rightEyePrevRotation )
 			{
-				if( (_leftEyeBone != null && _leftEyeBone.transformIsAlive) || (_rightEyeBone != null && _rightEyeBone.transformIsAlive) ) {
-					float _eyesHorzLimitAngle = 40.0f;
-					float _eyesVertLimitAngle = 12.0f;
-					float _eyesXRate = 0.796f;
-					float _eyesYRate = 0.729f;
-					float _eyesOuterXRotRate = 0.356f;
-					float _eyesInnerXRotRate = 0.212f;
+				if( _headBone != null && _headBone.transformIsAlive ) {
+					if( (_leftEyeBone != null && _leftEyeBone.transformIsAlive) || (_rightEyeBone != null && _rightEyeBone.transformIsAlive) ) {
+						Vector3 headWorldPosition, neckBoneWorldPosition = _neckBone.worldPosition;
+						SAFBIKMatMultVecPreSubAdd( out headWorldPosition, ref neckBasis, ref _headBone._defaultPosition, ref _neckBone._defaultPosition, ref neckBoneWorldPosition );
 
-					_internalValues.UpdateDebugValue( "_eyesHorzLimitAngle", ref _eyesHorzLimitAngle );
-					_internalValues.UpdateDebugValue( "_eyesVertLimitAngle", ref _eyesVertLimitAngle );
-					_internalValues.UpdateDebugValue( "_eyesXRate", ref _eyesXRate );
-					_internalValues.UpdateDebugValue( "_eyesYRate", ref _eyesYRate );
-					_internalValues.UpdateDebugValue( "_eyesOuterXRotRate", ref _eyesOuterXRotRate );
-					_internalValues.UpdateDebugValue( "_eyesInnerXRotRate", ref _eyesInnerXRotRate );
+						Vector3 eyesPosition;
+						SAFBIKMatMultVecPreSubAdd( out eyesPosition, ref headBasis, ref _eyesEffector._defaultPosition, ref _headBone._defaultPosition, ref headWorldPosition );
 
-					_eyesHorzLimitAngle *= Mathf.Deg2Rad;
-					_eyesVertLimitAngle *= Mathf.Deg2Rad;
+						Vector3 eyesDir = _eyesEffector.worldPosition - eyesPosition;
 
-					Vector3 headWorldPosition, neckBoneWorldPosition = _neckBone.worldPosition;
-                    SAFBIKMatMultVecPreSubAdd( out headWorldPosition, ref neckBasis, ref _headBone._defaultPosition, ref _neckBone._defaultPosition, ref neckBoneWorldPosition );
+						SAFBIKMatMultVecInv( out eyesDir, ref headBaseBasis, ref eyesDir );
 
-					Vector3 eyesPosition;
-					SAFBIKMatMultVecPreSubAdd( out eyesPosition, ref headBasis, ref _eyesEffector._defaultPosition, ref _headBone._defaultPosition, ref headWorldPosition );
+						SAFBIKVecNormalize( ref eyesDir );
 
-					Vector3 eyesDir = _eyesEffector.worldPosition - eyesPosition;
-
-					SAFBIKMatMultVecInv( out eyesDir, ref headBaseBasis, ref eyesDir );
-
-					SAFBIKVecNormalize( ref eyesDir );
-
-					if( _internalValues.resetTransforms && _eyesEffector.positionWeight < 1.0f - IKEpsilon ) {
-						Vector3 tempDir = Vector3.Lerp( new Vector3( 0.0f, 0.0f, 1.0f ), eyesDir, _eyesEffector.positionWeight );
-						if( SAFBIKVecNormalize( ref tempDir ) ) {
-							eyesDir = tempDir;
+						if( _internalValues.resetTransforms && _eyesEffector.positionWeight < 1.0f - IKEpsilon ) {
+							Vector3 tempDir = Vector3.Lerp( new Vector3( 0.0f, 0.0f, 1.0f ), eyesDir, _eyesEffector.positionWeight );
+							if( SAFBIKVecNormalize( ref tempDir ) ) {
+								eyesDir = tempDir;
+							}
 						}
-					}
 
-					_LimitXY_Square( ref eyesDir,
-						Mathf.Sin( _eyesHorzLimitAngle ),
-						Mathf.Sin( _eyesHorzLimitAngle ),
-						Mathf.Sin( _eyesVertLimitAngle ),
-						Mathf.Sin( _eyesVertLimitAngle ) );
+						_LimitXY_Square( ref eyesDir,
+							_internalValues.headIK.eyesLimitYawTheta.sin,
+							_internalValues.headIK.eyesLimitYawTheta.sin,
+							_internalValues.headIK.eyesLimitPitchTheta.sin,
+							_internalValues.headIK.eyesLimitPitchTheta.sin );
 
-					eyesDir.x *= _eyesXRate;
-					eyesDir.y *= _eyesYRate;
-					Vector3 leftEyeDir = eyesDir;
-					Vector3 rightEyeDir = eyesDir;
+						eyesDir.x *= _settings.headIK.eyesYawRate;
+						eyesDir.y *= _settings.headIK.eyesPitchRate;
+						Vector3 leftEyeDir = eyesDir;
+						Vector3 rightEyeDir = eyesDir;
 
-					if( eyesDir.x >= 0.0f ) {
-						leftEyeDir.x *= _eyesInnerXRotRate;
-						rightEyeDir.x *= _eyesOuterXRotRate;
-					} else {
-						leftEyeDir.x *= _eyesOuterXRotRate;
-						rightEyeDir.x *= _eyesInnerXRotRate;
-					}
-
-					SAFBIKVecNormalize2( ref leftEyeDir, ref rightEyeDir );
-
-					SAFBIKMatMultVec( out leftEyeDir, ref headBaseBasis, ref leftEyeDir );
-					SAFBIKMatMultVec( out rightEyeDir, ref headBaseBasis, ref rightEyeDir );
-
-					Quaternion worldRotation;
-
-					if( _leftEyeBone != null && _leftEyeBone.transformIsAlive ) {
-						Matrix3x3 leftEyeBaseBasis;
-						SAFBIKComputeBasisLockZ( out leftEyeBaseBasis, ref headBasis.column0, ref headBasis.column1, ref leftEyeDir );
-						SAFBIKMatMultGetRot( out worldRotation, ref leftEyeBaseBasis, ref _leftEyeBone._baseToWorldBasis );
-						if( !_internalValues.resetTransforms && _eyesEffector.positionWeight < 1.0f - IKEpsilon ) {
-							Quaternion fromRotation = _headBone.worldRotation * Inverse( headPrevRotation ) * leftEyePrevRotation;
-							_leftEyeBone.worldRotation = Quaternion.Lerp( fromRotation, worldRotation, _eyesEffector.positionWeight );
+						if( eyesDir.x >= 0.0f ) {
+							leftEyeDir.x *= _settings.headIK.eyesYawInnerRate;
+							rightEyeDir.x *= _settings.headIK.eyesYawOuterRate;
 						} else {
-							_leftEyeBone.worldRotation = worldRotation;
+							leftEyeDir.x *= _settings.headIK.eyesYawOuterRate;
+							rightEyeDir.x *= _settings.headIK.eyesYawInnerRate;
 						}
-					}
 
-					if( _rightEyeBone != null && _rightEyeBone.transformIsAlive ) {
-						Matrix3x3 rightEyeBaseBasis;
-						SAFBIKComputeBasisLockZ( out rightEyeBaseBasis, ref headBasis.column0, ref headBasis.column1, ref rightEyeDir );
-						SAFBIKMatMultGetRot( out worldRotation, ref rightEyeBaseBasis, ref _rightEyeBone._baseToWorldBasis );
-						if( !_internalValues.resetTransforms && _eyesEffector.positionWeight < 1.0f - IKEpsilon ) {
-							Quaternion fromRotation = _headBone.worldRotation * Inverse( headPrevRotation ) * rightEyePrevRotation;
-							_rightEyeBone.worldRotation = Quaternion.Lerp( fromRotation, worldRotation, _eyesEffector.positionWeight );
-						} else {
-							_rightEyeBone.worldRotation = worldRotation;
+						SAFBIKVecNormalize2( ref leftEyeDir, ref rightEyeDir );
+
+						SAFBIKMatMultVec( out leftEyeDir, ref headBaseBasis, ref leftEyeDir );
+						SAFBIKMatMultVec( out rightEyeDir, ref headBaseBasis, ref rightEyeDir );
+
+						Quaternion worldRotation;
+
+						Quaternion headBoneWorldRotation = _headBone.worldRotation;
+
+						if( _leftEyeBone != null && _leftEyeBone.transformIsAlive ) {
+							Matrix3x3 leftEyeBaseBasis;
+							SAFBIKComputeBasisLockZ( out leftEyeBaseBasis, ref headBasis.column0, ref headBasis.column1, ref leftEyeDir );
+							SAFBIKMatMultGetRot( out worldRotation, ref leftEyeBaseBasis, ref _leftEyeBone._baseToWorldBasis );
+							if( !_internalValues.resetTransforms && _eyesEffector.positionWeight < 1.0f - IKEpsilon ) {
+								Quaternion fromRotation;
+								SAFBIKQuatMultNorm3Inv1( out fromRotation, ref headBoneWorldRotation, ref headPrevRotation, ref leftEyePrevRotation );
+								_leftEyeBone.worldRotation = Quaternion.Lerp( fromRotation, worldRotation, _eyesEffector.positionWeight );
+							} else {
+								_leftEyeBone.worldRotation = worldRotation;
+							}
+						}
+
+						if( _rightEyeBone != null && _rightEyeBone.transformIsAlive ) {
+							Matrix3x3 rightEyeBaseBasis;
+							SAFBIKComputeBasisLockZ( out rightEyeBaseBasis, ref headBasis.column0, ref headBasis.column1, ref rightEyeDir );
+							SAFBIKMatMultGetRot( out worldRotation, ref rightEyeBaseBasis, ref _rightEyeBone._baseToWorldBasis );
+							if( !_internalValues.resetTransforms && _eyesEffector.positionWeight < 1.0f - IKEpsilon ) {
+								Quaternion fromRotation;
+                                SAFBIKQuatMultNorm3Inv1( out fromRotation, ref headBoneWorldRotation, ref headPrevRotation, ref rightEyePrevRotation );
+								_rightEyeBone.worldRotation = Quaternion.Lerp( fromRotation, worldRotation, _eyesEffector.positionWeight );
+							} else {
+								_rightEyeBone.worldRotation = worldRotation;
+							}
 						}
 					}
 				}
+
 			}
 			
 		}

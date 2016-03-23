@@ -199,8 +199,8 @@ namespace SA
 
 				EditorUtil.GUI.Field( "Automatic Prepare Humanoid", ref settings.automaticPrepareHumanoid );
 				EditorUtil.GUI.Field( "Automatic Configure Spine Enabled", ref settings.automaticConfigureSpineEnabled );
-				EditorUtil.GUI.Field( "Automatic Configure Roll Enabled", ref settings.automaticConfigureRollEnabled );
-				EditorUtil.GUI.Field( "Roll Enabled", ref settings.rollEnabled );
+				EditorUtil.GUI.Field( "Automatic Configure Roll Bones Enabled", ref settings.automaticConfigureRollBonesEnabled );
+				EditorUtil.GUI.Field( "Roll Bones Enabled", ref settings.rollBonesEnabled );
 
 				_Header( "BodyIK" );
 
@@ -266,7 +266,7 @@ namespace SA
 				EditorUtil.GUI.Slider( "Upper Eyes Limit Yaw", ref settings.bodyIK.upperEyesLimitYaw, 0.0f, 89.99f );
 				EditorUtil.GUI.Slider( "Upper Eyes Limit Pitch Up", ref settings.bodyIK.upperEyesLimitPitchUp, 0.0f, 89.99f );
 				EditorUtil.GUI.Slider( "Upper Eyes Limit Pitch Down", ref settings.bodyIK.upperEyesLimitPitchDown, 0.0f, 89.99f );
-				EditorUtil.GUI.Slider( "Upper Eyes Range Angle", ref settings.bodyIK.upperEyesRangeAngle, 90.0f, 180.0f );
+				EditorUtil.GUI.Slider( "Upper Eyes Trace Angle", ref settings.bodyIK.upperEyesTraceAngle, 90.0f, 180.0f );
 
 				_Header( "LimbIK" );
 
@@ -336,7 +336,7 @@ namespace SA
 				EditorUtil.GUI.Slider( "Head Limit Roll", ref settings.headIK.headLimitRoll, 0.0f, 89.99f );
 				EditorUtil.GUI.Slider( "Eyes To Head Yaw Rate", ref settings.headIK.eyesToHeadYawRate, 0.0f, 1.0f );
 				EditorUtil.GUI.Slider( "Eyes To Head Pitch Rate", ref settings.headIK.eyesToHeadPitchRate, 0.0f, 1.0f );
-				EditorUtil.GUI.Slider( "Eyes Range Angle", ref settings.headIK.eyesRangeAngle, 90.0f, 180.0f );
+				EditorUtil.GUI.Slider( "Eyes Trace Angle", ref settings.headIK.eyesTraceAngle, 90.0f, 180.0f );
 			}
 
 #if SAFULLBODYIK_DEBUG

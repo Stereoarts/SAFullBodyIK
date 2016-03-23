@@ -13,13 +13,23 @@ namespace SA
 		Vector3 _headBoneLossyScale = Vector3.one;
 		bool _isHeadBoneLossyScaleFuzzyIdentity = true;
 
-		public static Vector3 _unityChan_leftEyeDefaultLocalPosition = new Vector3( -0.042531f + 0.024f, 0.048524f, 0.047682f - 0.02f );
-		public static Vector3 _unityChan_rightEyeDefaultLocalPosition = new Vector3( 0.042531f - 0.024f, 0.048524f, 0.047682f - 0.02f );
+		Quaternion _headToLeftEyeRotation = Quaternion.identity;
+		Quaternion _headToRightEyeRotation = Quaternion.identity;
+
 		Vector3 _unityChan_leftEyeDefaultPosition = Vector3.zero;
 		Vector3 _unityChan_rightEyeDefaultPosition = Vector3.zero;
 
-		Quaternion _headToLeftEyeRotation = Quaternion.identity;
-		Quaternion _headToRightEyeRotation = Quaternion.identity;
+		static Vector3 _unityChan_leftEyeDefaultLocalPosition = new Vector3( -0.042531f + 0.024f, 0.048524f, 0.047682f - 0.02f );
+		static Vector3 _unityChan_rightEyeDefaultLocalPosition = new Vector3( 0.042531f - 0.024f, 0.048524f, 0.047682f - 0.02f );
+
+		static readonly float _unityChan_eyesHorzLimitTheta = Mathf.Sin( 40.0f * Mathf.Deg2Rad );
+		static readonly float _unityChan_eyesVertLimitTheta = Mathf.Sin( 4.5f * Mathf.Deg2Rad );
+		const float _unityChan_eyesYawRate = 0.796f;
+		const float _unityChan_eyesPitchRate = 0.28f;
+		const float _unityChan_eyesYawOuterRate = 0.096f;
+		const float _unityChan_eyesYawInnerRate = 0.065f;
+		const float _unityChan_eyesMoveXInnerRate = 0.063f * 0.1f;
+		const float _unityChan_eyesMoveXOuterRate = 0.063f * 0.1f;
 
 		public override bool _IsHiddenCustomEyes()
 		{
@@ -80,14 +90,17 @@ namespace SA
 				SAFBIKMatSetRotMultInv1( out headBasis, ref headWorldRotation, ref headBone._defaultRotation );
 
 				Vector3 worldPotision;
+				Quaternion worldRotation;
 
 				SAFBIKMatMultVecPreSubAdd( out worldPotision, ref headBasis, ref leftEyeBone._defaultPosition, ref headBone._defaultPosition, ref headWorldPosition );
 				leftEyeBone.worldPosition = worldPotision;
-				leftEyeBone.worldRotation = headWorldRotation * _headToLeftEyeRotation;
+				SAFBIKQuatMult( out worldRotation, ref headWorldRotation, ref _headToLeftEyeRotation );
+				leftEyeBone.worldRotation = worldRotation;
 
 				SAFBIKMatMultVecPreSubAdd( out worldPotision, ref headBasis, ref rightEyeBone._defaultPosition, ref headBone._defaultPosition, ref headWorldPosition );
 				rightEyeBone.worldPosition = worldPotision;
-				rightEyeBone.worldRotation = headWorldRotation * _headToRightEyeRotation;
+				SAFBIKQuatMult( out worldRotation, ref headWorldRotation, ref _headToRightEyeRotation );
+				rightEyeBone.worldRotation = worldRotation;
 			}
 		}
 
@@ -105,56 +118,6 @@ namespace SA
 				rightEyeBone != null && rightEyeBone.transformIsAlive &&
 				eyesEffector != null ) {
 
-				Vector3 leftEyePosition = new Vector3( -0.042531f, 0.048524f, 0.047682f );
-				Vector3 rightEyePosition = new Vector3( 0.042531f, 0.048524f, 0.047682f );
-
-				float _eyesHorzLimitAngle = 40.0f;
-				float _eyesVertLimitAngle = 4.5f;
-				float _eyesXRate = 0.796f;
-				float _eyesYRate = 0.28f;
-				float _eyesOuterXRotRate = 0.096f;
-				float _eyesInnerXRotRate = 0.065f;
-				float _eyesXOffset = -0.024f;
-				float _eyesYOffset = 0.0f;
-				float _eyesZOffset = -0.02f;
-
-				internalValues.UpdateDebugValue( "_eyesHorzLimitAngle", ref _eyesHorzLimitAngle );
-				internalValues.UpdateDebugValue( "_eyesVertLimitAngle", ref _eyesVertLimitAngle );
-				internalValues.UpdateDebugValue( "_eyesXRate", ref _eyesXRate );
-				internalValues.UpdateDebugValue( "_eyesYRate", ref _eyesYRate );
-				internalValues.UpdateDebugValue( "_eyesOuterXRotRate", ref _eyesOuterXRotRate );
-				internalValues.UpdateDebugValue( "_eyesInnerXRotRate", ref _eyesInnerXRotRate );
-				internalValues.UpdateDebugValue( "_eyesXOffset", ref _eyesXOffset );
-				internalValues.UpdateDebugValue( "_eyesYOffset", ref _eyesYOffset );
-				internalValues.UpdateDebugValue( "_eyesZOffset", ref _eyesZOffset );
-
-				float _innerMoveXRate = 0.063f;
-				float _outerMoveXRate = 0.063f;
-
-				internalValues.UpdateDebugValue( "_innerMoveXRate", ref _innerMoveXRate );
-				internalValues.UpdateDebugValue( "_outerMoveXRate", ref _outerMoveXRate );
-
-				_innerMoveXRate *= 0.1f;
-				_outerMoveXRate *= 0.1f;
-
-				_eyesHorzLimitAngle *= Mathf.Deg2Rad;
-				_eyesVertLimitAngle *= Mathf.Deg2Rad;
-
-				float _eyesHorzLimit = Mathf.Sin( _eyesHorzLimitAngle );
-				float _eyesVertLimit = Mathf.Sin( _eyesVertLimitAngle );
-
-				leftEyePosition.x -= _eyesXOffset;
-				rightEyePosition.x += _eyesXOffset;
-				leftEyePosition.y += _eyesYOffset;
-				rightEyePosition.y += _eyesYOffset;
-				leftEyePosition.z += _eyesZOffset;
-				rightEyePosition.z += _eyesZOffset;
-
-				Vector3 leftEyeDefaultPosition = _unityChan_leftEyeDefaultPosition;
-				Vector3 rightEyeDefaultPosition = _unityChan_rightEyeDefaultPosition;
-				leftEyePosition = _unityChan_leftEyeDefaultPosition;
-				rightEyePosition = _unityChan_rightEyeDefaultPosition;
-
 				Vector3 headWorldPosition, neckBoneWorldPosition = neckBone.worldPosition;
 				SAFBIKMatMultVecPreSubAdd( out headWorldPosition, ref neckBasis, ref headBone._defaultPosition, ref neckBone._defaultPosition, ref neckBoneWorldPosition );
 				Vector3 eyesPosition;
@@ -167,7 +130,9 @@ namespace SA
 
 				SAFBIKMatMultVecInv( out eyesDir, ref headBaseBasis, ref eyesDir );
 
-				SAFBIKVecNormalize( ref eyesDir );
+				if( !SAFBIKVecNormalize( ref eyesDir ) ) {
+					eyesDir = new Vector3( 0.0f, 0.0f, 1.0f );
+				}
 
 				if( eyesEffector.positionWeight < 1.0f - IKEpsilon ) {
 					Vector3 tempDir = Vector3.Lerp( new Vector3( 0.0f, 0.0f, 1.0f ), eyesDir, eyesEffector.positionWeight );
@@ -177,26 +142,29 @@ namespace SA
 				}
 
 				_LimitXY_Square( ref eyesDir,
-					Mathf.Sin( _eyesHorzLimitAngle ),
-					Mathf.Sin( _eyesHorzLimitAngle ),
-					Mathf.Sin( _eyesVertLimitAngle ),
-					Mathf.Sin( _eyesVertLimitAngle ) );
+					_unityChan_eyesHorzLimitTheta,
+					_unityChan_eyesHorzLimitTheta,
+					_unityChan_eyesVertLimitTheta,
+					_unityChan_eyesVertLimitTheta );
 
-				float moveX = Mathf.Clamp( eyesDir.x * _eyesXRate, -_eyesHorzLimit, _eyesHorzLimit );
-				float moveY = Mathf.Clamp( eyesDir.y * _eyesYRate, -_eyesVertLimit, _eyesVertLimit );
-				float moveZ = -Mathf.Max( 1.0f - eyesDir.z, 1.0f - _eyesVertLimit ); // Reuse _eyesVertLimit.
+				float moveX = eyesDir.x * _unityChan_eyesYawRate;
+				if( moveX < -_unityChan_eyesHorzLimitTheta ) {
+					moveX = -_unityChan_eyesHorzLimitTheta;
+                } else if( moveX > _unityChan_eyesHorzLimitTheta ) {
+					moveX = _unityChan_eyesHorzLimitTheta;
+				}
 
-				eyesDir.x *= _eyesXRate;
-				eyesDir.y *= _eyesYRate;
+				eyesDir.x *= _unityChan_eyesYawRate;
+				eyesDir.y *= _unityChan_eyesPitchRate;
 				Vector3 leftEyeDir = eyesDir;
 				Vector3 rightEyeDir = eyesDir;
 
 				if( eyesDir.x >= 0.0f ) {
-					leftEyeDir.x *= _eyesInnerXRotRate;
-					rightEyeDir.x *= _eyesOuterXRotRate;
+					leftEyeDir.x *= _unityChan_eyesYawInnerRate;
+					rightEyeDir.x *= _unityChan_eyesYawOuterRate;
 				} else {
-					leftEyeDir.x *= _eyesOuterXRotRate;
-					rightEyeDir.x *= _eyesInnerXRotRate;
+					leftEyeDir.x *= _unityChan_eyesYawOuterRate;
+					rightEyeDir.x *= _unityChan_eyesYawInnerRate;
 				}
 
 				SAFBIKVecNormalize2( ref leftEyeDir, ref rightEyeDir );
@@ -204,28 +172,14 @@ namespace SA
 				SAFBIKMatMultVec( out leftEyeDir, ref headBaseBasis, ref leftEyeDir );
 				SAFBIKMatMultVec( out rightEyeDir, ref headBaseBasis, ref rightEyeDir );
 
-				float leftXRate = (moveX >= 0.0f) ? _innerMoveXRate : _outerMoveXRate;
-				float rightXRate = (moveX >= 0.0f) ? _outerMoveXRate : _innerMoveXRate;
+				float leftXRate = (moveX >= 0.0f) ? _unityChan_eyesMoveXInnerRate : _unityChan_eyesMoveXOuterRate;
+				float rightXRate = (moveX >= 0.0f) ? _unityChan_eyesMoveXOuterRate : _unityChan_eyesMoveXInnerRate;
 
-				{
-					Vector3 xDir = headBasis.column0;
-					Vector3 yDir = headBasis.column1;
-					Vector3 zDir = leftEyeDir;
-					SAFBIKComputeBasisLockZ( out leftEyeBaseBasis, ref xDir, ref yDir, ref zDir );
-				}
+				SAFBIKComputeBasisLockZ( out leftEyeBaseBasis, ref headBasis.column0, ref headBasis.column1, ref leftEyeDir );
+				SAFBIKComputeBasisLockZ( out rightEyeBaseBasis, ref headBasis.column0, ref headBasis.column1, ref rightEyeDir );
 
-				{
-					Vector3 xDir = headBasis.column0;
-					Vector3 yDir = headBasis.column1;
-					Vector3 zDir = rightEyeDir;
-					SAFBIKComputeBasisLockZ( out rightEyeBaseBasis, ref xDir, ref yDir, ref zDir );
-				}
-
-				Vector3 leftEyeWorldPosition;
-				Vector3 rightEyeWorldPosition;
-
-				leftEyeWorldPosition = headBaseBasis.column0 * (leftXRate * moveX);
-				rightEyeWorldPosition = headBaseBasis.column0 * (rightXRate * moveX);
+				Vector3 leftEyeWorldPosition = headBaseBasis.column0 * (leftXRate * moveX);
+				Vector3 rightEyeWorldPosition = headBaseBasis.column0 * (rightXRate * moveX);
 
 				if( !_isHeadBoneLossyScaleFuzzyIdentity ) {
 					leftEyeWorldPosition = Scale( ref leftEyeWorldPosition, ref _headBoneLossyScale );
@@ -245,12 +199,12 @@ namespace SA
 				Vector3 worldPosition;
 				Quaternion worldRotation;
 
-				SAFBIKMatMultVecPreSubAdd( out worldPosition, ref leftEyeBasis, ref leftEyeBone._defaultPosition, ref leftEyeDefaultPosition, ref leftEyeWorldPosition );
+				SAFBIKMatMultVecPreSubAdd( out worldPosition, ref leftEyeBasis, ref leftEyeBone._defaultPosition, ref _unityChan_leftEyeDefaultPosition, ref leftEyeWorldPosition );
 				leftEyeBone.worldPosition = worldPosition;
 				SAFBIKMatMultGetRot( out worldRotation, ref leftEyeBaseBasis, ref leftEyeBone._baseToWorldBasis );
 				leftEyeBone.worldRotation = worldRotation;
 
-				SAFBIKMatMultVecPreSubAdd( out worldPosition, ref rightEyeBasis, ref rightEyeBone._defaultPosition, ref rightEyeDefaultPosition, ref rightEyeWorldPosition );
+				SAFBIKMatMultVecPreSubAdd( out worldPosition, ref rightEyeBasis, ref rightEyeBone._defaultPosition, ref _unityChan_rightEyeDefaultPosition, ref rightEyeWorldPosition );
 				rightEyeBone.worldPosition = worldPosition;
 				SAFBIKMatMultGetRot( out worldRotation, ref rightEyeBaseBasis, ref rightEyeBone._baseToWorldBasis );
 				rightEyeBone.worldRotation = worldRotation;

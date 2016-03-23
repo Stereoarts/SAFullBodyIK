@@ -56,8 +56,6 @@ namespace SA
 			Matrix3x3 _centerLegToArmBoneToBaseBasis = Matrix3x3.identity;
 			Matrix3x3 _centerLegToArmBaseToBoneBasis = Matrix3x3.identity;
 
-			Matrix3x3 _centerArmToNeckBasis = Matrix3x3.identity;		// dirX = nearArmPos[1] - nearArmPos[0], dirY(To) = neckPos - centerLegPos dirY(From) = centerArmPos - centerLegPos
-
 			float[] _shoulderToArmLength = new float[2];
 			bool[] _shouderLocalAxisYInv = new bool[2];
 			FastLength[] _elbowEffectorMaxLength = new FastLength[2];
@@ -113,9 +111,7 @@ namespace SA
 			float _defaultCenterLegLen; // LeftLeg to RightLeg Length.
 			float _defaultCenterLegHalfLen; // LeftLeg to RightLeg Length / 2.
 			float _defaultNearArmToNearArmLen = 0.0f;
-			float _defaultNearArmToNearArmHalfLen = 0.0f;
 			float _defaultCenterLegToCeterArmLen = 0.0f;
-			float _defaultCenterLegToNeckLen = 0.0f;
 
 			Vector3 _defaultCenterEyePos = Vector3.zero;
 
@@ -272,9 +268,6 @@ namespace SA
 					_solverCaches.defaultCenterLegPos = _defaultCenterLegPos;
 
 					_defaultCenterLegToCeterArmLen = SAFBIKVecLength2( ref _defaultCenterLegPos, ref _defaultCenterArmPos );
-					if( _neckBone != null ) {
-						_defaultCenterLegToNeckLen = SAFBIKVecLength2( ref _defaultCenterLegPos, ref _neckBone._defaultPosition );
-					}
 
 					if( _footEffectors != null ) {
 						if( _footEffectors[0].bone != null && _footEffectors[1].bone != null ) {
@@ -305,7 +298,6 @@ namespace SA
 
 					if( _nearArmBones != null ) {
 						_defaultNearArmToNearArmLen = SAFBIKVecLength2( ref _nearArmBones[0]._defaultPosition, ref _nearArmBones[1]._defaultPosition );
-						_defaultNearArmToNearArmHalfLen = _defaultNearArmToNearArmLen * 0.5f;
 						if( _neckBone != null && _neckBone.transformIsAlive ) {
 							_solverCaches.nearArmToNeckLength[0] = SAFBIKVecLength2( ref _neckBone._defaultPosition, ref _nearArmBones[0]._defaultPosition );
 							_solverCaches.nearArmToNeckLength[1] = SAFBIKVecLength2( ref _neckBone._defaultPosition, ref _nearArmBones[1]._defaultPosition );
@@ -483,11 +475,6 @@ namespace SA
 				return true;
 			}
 
-			Vector3[] _tempArmPos = new Vector3[2];
-			Vector3[] _tempArmPos2 = new Vector3[2];
-			Vector3[] _tempShoulderPos = new Vector3[2];
-			Vector3[] _tempShoulderPos2 = new Vector3[2];
-
 			bool _UpperSolve()
 			{
 				var temp = _solverInternal;
@@ -511,9 +498,6 @@ namespace SA
 						return false; // No moved.
 					}
 				}
-
-				float upperCenterLegRotateRate = _internalValues.bodyIK.upperCenterLegRotateRate.value;
-				float upperSpineRotateRate = _internalValues.bodyIK.upperSpineRotateRate.value;
 
 				Vector3 baseCenterLegPos = Vector3.zero; // for continuousSolver
 
@@ -693,7 +677,7 @@ namespace SA
 
 							SAFBIKVecNormalize( ref eyeDir );
 
-							if( _ComputeEyesRange( ref eyeDir, _internalValues.bodyIK.upperEyesRangeTheta.cos ) ) {
+							if( _ComputeEyesRange( ref eyeDir, _internalValues.bodyIK.upperEyesTraceTheta.cos ) ) {
 								_LimitXY( ref eyeDir, upperEyesXLimit, upperEyesXLimit, upperEyesYDownLimit, upperEyesYUpLimit );
 							}
 

@@ -38,9 +38,6 @@ namespace SA
 			public float _beginToBendingLengthSq;
 			public float _bendingToEndLength;
 			public float _bendingToEndLengthSq;
-			Matrix3x3 _solvedToBeginBoneBasis = Matrix3x3.identity;
-			Matrix3x3 _beginBoneToSolvedBasis = Matrix3x3.identity;
-			Matrix3x3 _solvedToBendingBoneBasis = Matrix3x3.identity;
 
 			Matrix3x3 _beginToBendingBoneBasis = Matrix3x3.identity;
 			Quaternion _endEffectorToWorldRotation = Quaternion.identity;
@@ -141,10 +138,6 @@ namespace SA
 				// Force execution on 1st time. (Ignore case _settings.syncDisplacement == SyncDisplacement.Disable)
 				if( _settings.syncDisplacement == SyncDisplacement.Everyframe || !_isSyncDisplacementAtLeastOnce ) {
 					_isSyncDisplacementAtLeastOnce = true;
-
-					_beginBoneToSolvedBasis = _beginBone._localAxisBasis;
-					_solvedToBeginBoneBasis = _beginBone._localAxisBasisInv;
-					_solvedToBendingBoneBasis = _bendingBone._localAxisBasisInv;
 
 					SAFBIKMatMult( out _beginToBendingBoneBasis, ref _beginBone._localAxisBasisInv, ref _bendingBone._localAxisBasis );
 
@@ -1154,7 +1147,7 @@ namespace SA
 
 			bool _RollInternal()
 			{
-				if( _limbIKType != LimbIKType.Arm || !_settings.rollEnabled ) {
+				if( _limbIKType != LimbIKType.Arm || !_settings.rollBonesEnabled ) {
 					return false;
 				}
 
