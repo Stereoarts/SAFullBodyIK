@@ -267,6 +267,17 @@ namespace SA
 				// Arm elbow limit angles.(Automatic / Manual)
 				public float elbowFrontInnerLimitAngle = 5.0f;
 				public float elbowBackInnerLimitAngle = 0.0f;
+
+				// Wrist limit
+				public bool wristLimitEnabled = true;
+				public float wristLimitAngle = 90.0f;
+
+				// Foot limit
+				public bool footLimitEnabled = true;
+				public float footLimitYaw = 45.0f;
+				public float footLimitPitchUp = 45.0f;
+				public float footLimitPitchDown = 60.0f;
+				public float footLimitRoll = 45.0f;
 			}
 
 			[System.Serializable]
@@ -278,7 +289,7 @@ namespace SA
 
 				public float eyesToNeckPitchRate = 0.4f;
 
-				public float headLimitYaw = 80.0f;
+				public float headLimitYaw = 60.0f;
 				public float headLimitPitchUp = 15.0f;
 				public float headLimitPitchDown = 15.0f;
 				public float headLimitRoll = 5.0f;
@@ -514,6 +525,11 @@ namespace SA
 				public CachedDegreesToSin elbowFrontInnerLimitTheta = CachedDegreesToSin.zero;
 				public CachedDegreesToSin elbowBackInnerLimitTheta = CachedDegreesToSin.zero;
 
+				public CachedDegreesToSin footLimitYawTheta = CachedDegreesToSin.zero;
+				public CachedDegreesToSin footLimitPitchUpTheta = CachedDegreesToSin.zero;
+				public CachedDegreesToSin footLimitPitchDownTheta = CachedDegreesToSin.zero;
+				public CachedDegreesToSin footLimitRollTheta = CachedDegreesToSin.zero;
+
 				public void Update( Settings.LimbIK settingsLimbIK )
 				{
 					// Optimize: Reduce C# fuction call.
@@ -544,6 +560,19 @@ namespace SA
 					}
 					if( elbowBackInnerLimitTheta._degrees != settingsLimbIK.elbowBackInnerLimitAngle ) {
 						elbowBackInnerLimitTheta._Reset( settingsLimbIK.elbowBackInnerLimitAngle );
+					}
+
+					if( footLimitYawTheta._degrees != settingsLimbIK.footLimitYaw ) {
+						footLimitYawTheta._Reset( settingsLimbIK.footLimitYaw );
+					}
+					if( footLimitPitchUpTheta._degrees != settingsLimbIK.footLimitPitchUp ) {
+						footLimitPitchUpTheta._Reset( settingsLimbIK.footLimitPitchUp );
+					}
+					if( footLimitPitchDownTheta._degrees != settingsLimbIK.footLimitPitchDown ) {
+						footLimitPitchDownTheta._Reset( settingsLimbIK.footLimitPitchDown );
+					}
+					if( footLimitRollTheta._degrees != settingsLimbIK.footLimitRoll ) {
+						footLimitRollTheta._Reset( settingsLimbIK.footLimitRoll );
 					}
 				}
 			}

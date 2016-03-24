@@ -105,7 +105,7 @@ namespace SA
 
 			void _Prepare( FullBodyIK fullBodyIK )
 			{
-				_endEffectorToWorldRotation = Inverse( _endEffector.defaultRotation ) * _endBone._defaultRotation;
+				SAFBIKQuatMultInv0( out _endEffectorToWorldRotation, ref _endEffector._defaultRotation, ref _endBone._defaultRotation );
 
 				// for _defaultCosTheta, _defaultSinTheta
 				_beginToBendingLength = _bendingBone._defaultLocalLength.length;
@@ -1026,8 +1026,20 @@ namespace SA
 
 				_arm_isSolvedLimbIK = false;
 
+				Quaternion bendingBonePrevRotation = Quaternion.identity;
+				Quaternion endBonePrevRotation = Quaternion.identity;
+				if( !_internalValues.resetTransforms ) {
+					float endRotationWeight = _endEffector.rotationEnabled ? _endEffector.rotationWeight : 0.0f;
+					if( endRotationWeight > IKEpsilon ) {
+						if( endRotationWeight < 1.0f - IKEpsilon ) {
+							bendingBonePrevRotation = _bendingBone.worldRotation;
+							endBonePrevRotation = _endBone.worldRotation;
+						}
+					}
+				}
+
 				bool r = _SolveInternal();
-				r |= _SolveEndRotation();
+				r |= _SolveEndRotation( r, ref bendingBonePrevRotation, ref endBonePrevRotation );
 				r |= _RollInternal();
 
 				return r;
@@ -1132,17 +1144,113 @@ namespace SA
 				return true;
 			}
 
-			bool _SolveEndRotation()
+			bool _SolveEndRotation( bool isSolved, ref Quaternion bendingBonePrevRotation, ref Quaternion endBonePrevRotation )
 			{
-				if( !_endEffector.rotationEnabled ) {
-					return false;
+				float endRotationWeight = _endEffector.rotationEnabled ? _endEffector.rotationWeight : 0.0f;
+				if( endRotationWeight > IKEpsilon ) {
+					Quaternion endEffectorWorldRotation = _endEffector.worldRotation;
+					Quaternion toRotation;
+					SAFBIKQuatMult( out toRotation, ref endEffectorWorldRotation, ref _endEffectorToWorldRotation );
+
+					if( endRotationWeight < 1.0f - IKEpsilon ) {
+						Quaternion fromRotation;
+						if( _internalValues.resetTransforms ) {
+							Quaternion bendingBoneWorldRotation = _bendingBone.worldRotation;
+							SAFBIKQuatMult3( out fromRotation, ref bendingBoneWorldRotation, ref _bendingBone._worldToBaseRotation, ref _endBone._baseToWorldRotation );
+						} else {
+							if( isSolved ) {
+								Quaternion bendingBoneWorldRotation = _bendingBone.worldRotation;
+								SAFBIKQuatMultNorm3Inv1( out fromRotation, ref bendingBoneWorldRotation, ref bendingBonePrevRotation, ref endBonePrevRotation );
+							} else {
+								fromRotation = endBonePrevRotation; // This is able to use endBonePrevRotation directly.
+							}
+						}
+						_endBone.worldRotation = Quaternion.Lerp( fromRotation, toRotation, endRotationWeight );
+					} else {
+						_endBone.worldRotation = toRotation;
+					}
+
+					_EndRotationLimit();
+                    return true;
+				} else {
+					if( _internalValues.resetTransforms ) {
+						Quaternion fromRotation, bendingBoneWorldRotation = _bendingBone.worldRotation;
+						SAFBIKQuatMult3( out fromRotation, ref bendingBoneWorldRotation, ref _bendingBone._worldToBaseRotation, ref _endBone._baseToWorldRotation );
+						_endBone.worldRotation = fromRotation;
+						return true;
+					}
 				}
 
-				// todo: rotationWeight
+				return false;
+			}
 
-				var r = _endEffector.worldRotation * _endEffectorToWorldRotation;
-				_endBone.worldRotation = r;
-				return true;
+			void _EndRotationLimit()
+			{
+				if( _limbIKType == LimbIKType.Arm ) {
+					if( !_settings.limbIK.wristLimitEnabled ) {
+						return;
+					}
+				} else if( _limbIKType == LimbIKType.Leg ) {
+					if( !_settings.limbIK.footLimitEnabled ) {
+						return;
+					}
+				}
+
+				// Rotation Limit.
+				Quaternion tempRotation, endRotation, bendingRotation, localRotation;
+				tempRotation = _endBone.worldRotation;
+				SAFBIKQuatMult( out endRotation, ref tempRotation, ref _endBone._worldToBaseRotation );
+				tempRotation = _bendingBone.worldRotation;
+				SAFBIKQuatMult( out bendingRotation, ref tempRotation, ref _bendingBone._worldToBaseRotation );
+				SAFBIKQuatMultInv0( out localRotation, ref bendingRotation, ref endRotation );
+
+				if( _limbIKType == LimbIKType.Arm ) {
+					bool isLimited = false;
+					float limitAngle = _settings.limbIK.wristLimitAngle;
+
+					float angle;
+					Vector3 axis;
+					localRotation.ToAngleAxis( out angle, out axis );
+					if( angle < -limitAngle ) {
+						angle = -limitAngle;
+						isLimited = true;
+					} else if( angle > limitAngle ) {
+						angle = limitAngle;
+						isLimited = true;
+					}
+
+					if( isLimited ) {
+						localRotation = Quaternion.AngleAxis( angle, axis );
+						SAFBIKQuatMultNorm3( out endRotation, ref bendingRotation, ref localRotation, ref _endBone._baseToWorldRotation );
+						_endBone.worldRotation = endRotation;
+					}
+				} else if( _limbIKType == LimbIKType.Leg ) {
+					Matrix3x3 localBasis;
+					SAFBIKMatSetRot( out localBasis, ref localRotation );
+
+					Vector3 localDirY = localBasis.column1;
+					Vector3 localDirZ = localBasis.column2;
+
+					bool isLimited = false;
+					isLimited |= _LimitXZ_Square( ref localDirY,
+						_internalValues.limbIK.footLimitRollTheta.sin,
+						_internalValues.limbIK.footLimitRollTheta.sin,
+						_internalValues.limbIK.footLimitPitchUpTheta.sin,
+						_internalValues.limbIK.footLimitPitchDownTheta.sin );
+					isLimited |= _LimitXY_Square( ref localDirZ,
+						_internalValues.limbIK.footLimitYawTheta.sin,
+						_internalValues.limbIK.footLimitYawTheta.sin,
+						_internalValues.limbIK.footLimitPitchDownTheta.sin,
+						_internalValues.limbIK.footLimitPitchUpTheta.sin );
+
+					if( isLimited ) {
+						if( SAFBIKComputeBasisFromYZLockZ( out localBasis, ref localDirY, ref localDirZ ) ) {
+							SAFBIKMatGetRot( out localRotation, ref localBasis );
+							SAFBIKQuatMultNorm3( out endRotation, ref bendingRotation, ref localRotation, ref _endBone._baseToWorldRotation );
+							_endBone.worldRotation = endRotation;
+						}
+					}
+				}
 			}
 
 			bool _RollInternal()

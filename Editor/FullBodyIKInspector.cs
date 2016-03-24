@@ -325,6 +325,16 @@ namespace SA
 				EditorUtil.GUI.Slider( "Elbow Front Inner Limit Angle", ref settings.limbIK.elbowFrontInnerLimitAngle, 0.0f, 90.0f );
 				EditorUtil.GUI.Slider( "Elbow Back Inner Limit Angle", ref settings.limbIK.elbowBackInnerLimitAngle, 0.0f, 90.0f );
 
+				GUILayout.Label( "Wrist limit", _guiStyle_section );
+				EditorUtil.GUI.Field( "Wrist Limit Enabled", ref settings.limbIK.wristLimitEnabled );
+				EditorUtil.GUI.Slider( "Wrist Limit Angle", ref settings.limbIK.wristLimitAngle, 0.0f, 180.0f );
+
+				GUILayout.Label( "Foot limit", _guiStyle_section );
+				EditorUtil.GUI.Slider( "Foot Limit Yaw", ref settings.limbIK.footLimitYaw, 0.0f, 89.99f );
+				EditorUtil.GUI.Slider( "Foot Limit Pitch Up", ref settings.limbIK.footLimitPitchUp, 0.0f, 89.99f );
+				EditorUtil.GUI.Slider( "Foot Limit Pitch Down", ref settings.limbIK.footLimitPitchDown, 0.0f, 89.99f );
+				EditorUtil.GUI.Slider( "Foot Limit Roll", ref settings.limbIK.footLimitRoll, 0.0f, 89.99f );
+
 				_Header( "HeadIK" );
 				EditorUtil.GUI.Slider( "Neck Limit Pitch Up", ref settings.headIK.neckLimitPitchUp, 0.0f, 89.99f );
 				EditorUtil.GUI.Slider( "Neck Limit Pitch Down", ref settings.headIK.neckLimitPitchDown, 0.0f, 89.99f );
