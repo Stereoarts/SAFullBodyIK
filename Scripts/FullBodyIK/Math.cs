@@ -2347,7 +2347,7 @@ namespace SA
 			}
 
 			if( rate <= 1.0f - IKEpsilon ) {
-				float acos = (cos >= 1.0f - IKEpsilon) ? 0.0f : ((cos <= -1.0f - IKEpsilon) ? (180.0f * Mathf.Deg2Rad) : (float)System.Math.Acos( (float)cos ));
+				float acos = (cos >= 1.0f - IKEpsilon) ? 0.0f : ((cos <= -1.0f + IKEpsilon) ? (180.0f * Mathf.Deg2Rad) : (float)System.Math.Acos( (float)cos ));
 				cos = (float)System.Math.Cos( (float)(acos * rate) );
 			}
 
