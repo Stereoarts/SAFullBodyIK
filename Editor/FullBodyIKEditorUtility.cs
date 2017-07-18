@@ -9,6 +9,82 @@ namespace SA
 {
 	public static class FullBodyIKEditorUtility
 	{
+#if UNITY_5_0 || UNITY_5_1 || UNITY_5_2
+		public static void SetDirty( UnityEngine.Object target )
+		{
+			EditorUtility.SetDirty( target );
+		}
+#else
+		public static void SetDirty( UnityEngine.Object target )
+		{
+			if( target != null ) {
+				if( target is Transform ) {
+					_SetDirty( target as Transform );
+				} else if( target is GameObject ) {
+					_SetDirty( target as GameObject );
+				} else if( target is Component ) {
+					_SetDirty( target as Component );
+				} else {
+					EditorUtility.SetDirty( target );
+				}
+			}
+		}
+
+		static void _SetDirty( UnityEngine.Component target )
+		{
+			if( target != null ) {
+				if( _IsInSceneGameObject( target.gameObject ) ) {
+					if( EditorApplication.isPlaying ) {
+						return;
+					}
+
+					UnityEditor.SceneManagement.EditorSceneManager.MarkAllScenesDirty();
+				} else {
+					EditorUtility.SetDirty( target );
+				}
+			}
+		}
+
+		static void SetDirty( UnityEngine.Transform target )
+		{
+			if( target != null ) {
+				if( _IsInSceneGameObject( target.gameObject ) ) {
+					if( EditorApplication.isPlaying ) {
+						return;
+					}
+
+					UnityEditor.SceneManagement.EditorSceneManager.MarkAllScenesDirty();
+				} else {
+					EditorUtility.SetDirty( target );
+				}
+			}
+		}
+
+		static void _SetDirty( UnityEngine.GameObject target )
+		{
+			if( target != null ) {
+				if( _IsInSceneGameObject( target ) ) {
+					if( EditorApplication.isPlaying ) {
+						return;
+					}
+
+					UnityEditor.SceneManagement.EditorSceneManager.MarkAllScenesDirty();
+				} else {
+					EditorUtility.SetDirty( target );
+				}
+			}
+		}
+
+		static bool _IsInSceneGameObject( GameObject gameObject )
+		{
+			if( gameObject == null ) {
+				return false;
+			}
+
+			return !AssetDatabase.Contains( gameObject );
+		}
+#endif
+
 		public static class GUI
 		{
 			public static void Toolbar( Object target, ref int toolbarSelected, string[] toolbarContents )
@@ -17,7 +93,7 @@ namespace SA
 				if( toolbarSelected != tempToolbarSelected ) {
 					Undo.RecordObject( target, target.GetType().Name );
 					toolbarSelected = tempToolbarSelected;
-					EditorUtility.SetDirty( target );
+					FullBodyIKEditorUtility.SetDirty( target );
 				}
 			}
 
@@ -28,7 +104,7 @@ namespace SA
 				if( EditorGUI.EndChangeCheck() ) {
 					Undo.RecordObject( target, target.GetType().Name );
 					value = tempValue;
-					EditorUtility.SetDirty( target );
+					FullBodyIKEditorUtility.SetDirty( target );
 				}
 			}
 
@@ -40,7 +116,7 @@ namespace SA
 				if( EditorGUI.EndChangeCheck() ) {
 					Undo.RecordObject( target, target.GetType().Name );
 					value = tempValue;
-					EditorUtility.SetDirty( target );
+					FullBodyIKEditorUtility.SetDirty( target );
 				}
 			}
 
@@ -51,7 +127,7 @@ namespace SA
 				if( EditorGUI.EndChangeCheck() ) {
 					Undo.RecordObject( target, target.GetType().Name );
 					value = tempValue;
-					EditorUtility.SetDirty( target );
+					FullBodyIKEditorUtility.SetDirty( target );
 				}
 			}
 
@@ -62,7 +138,7 @@ namespace SA
 				if( EditorGUI.EndChangeCheck() ) {
 					Undo.RecordObject( target, target.GetType().Name );
 					value = tempValue;
-					EditorUtility.SetDirty( target );
+					FullBodyIKEditorUtility.SetDirty( target );
 				}
 			}
 
@@ -72,7 +148,7 @@ namespace SA
 				if( selected != tempSelected ) {
 					Undo.RecordObject( target, target.GetType().Name );
 					selected = tempSelected;
-					EditorUtility.SetDirty( target );
+					FullBodyIKEditorUtility.SetDirty( target );
 				}
 			}
 
@@ -82,7 +158,7 @@ namespace SA
 				if( selected != tempSelected ) {
 					Undo.RecordObject( target, target.GetType().Name );
 					selected = tempSelected;
-					EditorUtility.SetDirty( target );
+					FullBodyIKEditorUtility.SetDirty( target );
 				}
 			}
 
@@ -92,7 +168,7 @@ namespace SA
 				if( selected != tempSelected ) {
 					Undo.RecordObject( target, target.GetType().Name );
 					selected = tempSelected;
-					EditorUtility.SetDirty( target );
+					FullBodyIKEditorUtility.SetDirty( target );
 				}
 			}
 
@@ -102,7 +178,7 @@ namespace SA
 				if( selected != tempSelected ) {
 					Undo.RecordObject( target, target.GetType().Name );
 					selected = tempSelected;
-					EditorUtility.SetDirty( target );
+					FullBodyIKEditorUtility.SetDirty( target );
 				}
 			}
 
@@ -113,7 +189,7 @@ namespace SA
 				if( obj != tempObj ) {
 					Undo.RecordObject( target, target.GetType().Name );
 					obj = tempObj;
-					EditorUtility.SetDirty( target );
+					FullBodyIKEditorUtility.SetDirty( target );
 				}
 			}
 
@@ -130,7 +206,7 @@ namespace SA
 
 					Undo.RecordObject( target, target.GetType().Name );
 					obj = tempObj;
-					EditorUtility.SetDirty( target );
+					FullBodyIKEditorUtility.SetDirty( target );
 				}
 			}
 
