@@ -1451,12 +1451,7 @@ namespace SA
 
 			if( hipsEffector.positionEnabled && hipsEffector.positionWeight > IKEpsilon ) {
 				Vector3 hipsEffectorWorldPosition = hipsEffector.worldPosition;
-				SAFBIKMatMultVecPreSubAdd(
-					out internalValues.baseHipsPos,
-					ref internalValues.baseHipsBasis,
-					ref rootEffector._defaultPosition,
-					ref hipsEffector._defaultPosition,
-					ref hipsEffectorWorldPosition );
+				internalValues.baseHipsPos = hipsEffectorWorldPosition;
 				if( hipsEffector.positionWeight < 1.0f - IKEpsilon ) {
 					Vector3 rootEffectorWorldPosition = rootEffector.worldPosition;
 					Vector3 hipsPosition;
